@@ -55,7 +55,9 @@ class NettyClient(
   private val _messageFlow = MutableSharedFlow<String>()
   private val _connectionStateFlow = MutableStateFlow(ConnectionState.DISCONNECTED)
 
+  /** 监听消息 */
   val messageFlow: Flow<String> = _messageFlow.asSharedFlow()
+  /** 监听连接状态 */
   val connectionStateFlow: StateFlow<ConnectionState> = _connectionStateFlow.asStateFlow()
 
   /** 连接状态 */
