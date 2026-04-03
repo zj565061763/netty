@@ -1,4 +1,2 @@
 -keep class io.netty.** { *; }
 -dontwarn io.netty.**
--dontwarn org.apache.log4j.**
--dontwarn org.apache.logging.log4j.**
