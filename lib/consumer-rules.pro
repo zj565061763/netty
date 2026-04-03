@@ -2,5 +2,3 @@
 -dontwarn io.netty.**
 -dontwarn org.apache.log4j.**
 -dontwarn org.apache.logging.log4j.**
--dontwarn org.slf4j.**
--dontwarn reactor.blockhound.**
