@@ -127,17 +127,6 @@ class NettyClient(
       }
   }
 
-  @OptIn(ExperimentalCoroutinesApi::class)
-  private fun getCoroutineScope(): CoroutineScope? {
-    _coroutineScope?.also { return it }
-    synchronized(_lock) {
-      _coroutineScope?.also { return it }
-      if (getConnectionState() == ConnectionState.DISCONNECTED) return null
-      return CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
-        .also { _coroutineScope = it }
-    }
-  }
-
   private fun doConnect(): CompletableDeferred<Unit> {
     check(_connection == null)
     return CompletableDeferred<Unit>().also { deferred ->
@@ -176,6 +165,17 @@ class NettyClient(
         disconnect()
         throw NettyClientConnectException(e)
       }
+    }
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private fun getCoroutineScope(): CoroutineScope? {
+    _coroutineScope?.also { return it }
+    synchronized(_lock) {
+      _coroutineScope?.also { return it }
+      if (getConnectionState() == ConnectionState.DISCONNECTED) return null
+      return CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
+        .also { _coroutineScope = it }
     }
   }
 
