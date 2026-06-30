@@ -42,6 +42,7 @@ class NettyClient(
   private val onNettyError: (Throwable) -> Unit = { it.printStackTrace() },
 ) {
   private val _lock = Any()
+  private var _isLineBasedDecoder = false
 
   private var _connection: NettyConnection? = null
   private var _group: EventExecutorGroup? = null
@@ -82,6 +83,7 @@ class NettyClient(
     synchronized(_lock) {
       if (getConnectionState() == ConnectionState.DISCONNECTED) return
       _connectionStateFlow.value = ConnectionState.DISCONNECTED
+      _isLineBasedDecoder = false
       _connection?.destroy()
       _connection = null
       _pendingJobs.forEach { it.cancel() }
@@ -103,7 +105,12 @@ class NettyClient(
       synchronized(_lock) {
         val channel = _channel
         if (channel != null && channel.isActive) {
-          channel.writeAndFlush(message).addListener(ChannelFutureListener { future ->
+          val finalMessage = if (_isLineBasedDecoder && !message.endsWith('\n') && !message.endsWith("\r\n")) {
+            message + "\n"
+          } else {
+            message
+          }
+          channel.writeAndFlush(finalMessage).addListener(ChannelFutureListener { future ->
             if (future.isSuccess) {
               deferred.complete(Unit)
             } else {
@@ -140,7 +147,7 @@ class NettyClient(
           host = host,
           port = port,
           connectTimeoutMillis = connectTimeoutMillis,
-          frameDecoder = getFrameDecoder(),
+          frameDecoder = getFrameDecoder().also { _isLineBasedDecoder = it is LineBasedFrameDecoder },
           onConnect = { group, future ->
             _group = group
             if (future.isSuccess) {
