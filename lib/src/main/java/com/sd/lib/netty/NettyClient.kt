@@ -23,6 +23,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
@@ -100,7 +102,17 @@ class NettyClient(
 
   /** 发送消息 */
   @Throws(NettyClientException::class)
-  suspend fun send(message: String) {
+  suspend fun send(message: String, timeoutMillis: Long = 10000L) {
+    try {
+      withTimeout(timeoutMillis) {
+        send(message)
+      }
+    } catch (e: TimeoutCancellationException) {
+      throw NettyClientSendException(cause = e)
+    }
+  }
+
+  private suspend fun send(message: String) {
     pendingJob { deferred ->
       synchronized(_lock) {
         val channel = _channel
