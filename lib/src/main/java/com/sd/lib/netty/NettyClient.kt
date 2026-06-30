@@ -143,13 +143,14 @@ class NettyClient(
       _connectionStateFlow.value = ConnectionState.CONNECTING
       _connectDeferred = deferred
       try {
+        val group = NioEventLoopGroup(1).also { _group = it }
         NettyConnection(_lock).also { _connection = it }.connect(
+          group = group,
           host = host,
           port = port,
           connectTimeoutMillis = connectTimeoutMillis,
           frameDecoder = getFrameDecoder().also { _isLineBasedDecoder = it is LineBasedFrameDecoder },
-          onConnect = { group, future ->
-            _group = group
+          onConnect = { future ->
             if (future.isSuccess) {
               _channel = future.channel()
               setConnected()
@@ -225,18 +226,18 @@ private class NettyConnection(private val lock: Any) {
   private var _destroyed = false
 
   fun connect(
+    group: EventLoopGroup,
     host: String,
     port: Int,
     connectTimeoutMillis: Int,
     frameDecoder: ChannelHandler,
-    onConnect: (EventLoopGroup, ChannelFuture) -> Unit,
+    onConnect: (ChannelFuture) -> Unit,
     onChannelActive: () -> Unit,
     onChannelInactive: () -> Unit,
     onChannelRead0: (String) -> Unit,
     onExceptionCaught: (Throwable) -> Unit,
   ) {
     if (_destroyed) return
-    val group = NioEventLoopGroup(1)
     Bootstrap()
       .group(group)
       .channel(NioSocketChannel::class.java)
@@ -289,7 +290,7 @@ private class NettyConnection(private val lock: Any) {
               group.shutdownGracefully()
             }
           } else {
-            onConnect(group, future)
+            onConnect(future)
           }
         }
       })
