@@ -285,10 +285,7 @@ private class NettyConnection(private val lock: Any) {
       .connect(host, port).addListener(ChannelFutureListener { future ->
         synchronized(lock) {
           if (_destroyed) {
-            runCatching {
-              future.channel().close()
-              group.shutdownGracefully()
-            }
+            runCatching { future.channel().close() }
           } else {
             onConnect(future)
           }
