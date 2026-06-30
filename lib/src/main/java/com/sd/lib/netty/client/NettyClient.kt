@@ -1,4 +1,4 @@
-package com.sd.lib.netty
+package com.sd.lib.netty.client
 
 import io.netty.bootstrap.Bootstrap
 import io.netty.channel.Channel

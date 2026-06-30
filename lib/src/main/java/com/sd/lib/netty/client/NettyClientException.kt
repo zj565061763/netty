@@ -1,4 +1,4 @@
-package com.sd.lib.netty
+package com.sd.lib.netty.client
 
 open class NettyClientException internal constructor(message: String? = null, cause: Throwable? = null) : Exception(message, cause)
 
