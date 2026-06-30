@@ -108,7 +108,7 @@ class NettyClient(
         send(message)
       }
     } catch (e: TimeoutCancellationException) {
-      throw NettyClientSendException(cause = e)
+      throw NettyClientSendTimeoutException(cause = e)
     }
   }
 
@@ -231,6 +231,9 @@ class NettyClient(
 
   /** 发送异常 */
   class NettyClientSendException internal constructor(cause: Throwable?) : NettyClientException(null, cause)
+
+  /** 发送超时异常 */
+  class NettyClientSendTimeoutException internal constructor(cause: Throwable?) : NettyClientException(null, cause)
 }
 
 private class NettyConnection(private val lock: Any) {
