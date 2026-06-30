@@ -80,6 +80,8 @@ class NettyClient(
   /** 断开连接 */
   fun disconnect() {
     synchronized(_lock) {
+      if (getConnectionState() == ConnectionState.DISCONNECTED) return
+      _connectionStateFlow.value = ConnectionState.DISCONNECTED
       _connection?.destroy()
       _connection = null
       _pendingJobs.forEach { it.cancel() }
@@ -91,7 +93,6 @@ class NettyClient(
       _channel = null
       _group?.shutdownGracefully()
       _group = null
-      _connectionStateFlow.value = ConnectionState.DISCONNECTED
     }
   }
 
