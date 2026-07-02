@@ -121,7 +121,7 @@ class NettyClient(
       synchronized(_lock) {
         val channel = _channel
         if (channel != null && channel.isActive) {
-          val finalMessage = if (_isLineBasedDecoder && !message.endsWith('\n') && !message.endsWith("\r\n")) {
+          val finalMessage = if (_isLineBasedDecoder && !message.endsWith('\n')) {
             message + "\n"
           } else {
             message
