@@ -154,7 +154,6 @@ class NettyClient(
   }
 
   private fun doConnect(): CompletableDeferred<Unit> {
-    check(_connection == null)
     return CompletableDeferred<Unit>().also { deferred ->
       _connectionStateFlow.value = ConnectionState.CONNECTING
       _connectDeferred = deferred
