@@ -118,22 +118,29 @@ class NettyServer(
     pendingJob { deferred ->
       synchronized(_lock) {
         val channel = _clients[clientId]
-        if (channel != null && channel.isActive) {
-          val finalMessage = if (_isLineBasedDecoder && !message.endsWith('\n')) {
-            message + "\n"
-          } else {
-            message
-          }
-          channel.writeAndFlush(finalMessage).addListener(ChannelFutureListener { future ->
-            if (future.isSuccess) {
-              deferred.complete(Unit)
-            } else {
-              deferred.completeExceptionally(NettyServerSendException(cause = future.cause()))
-            }
-          })
-        } else {
-          deferred.completeExceptionally(NettyServerNotReadyException("Client $clientId not found or not active"))
+        if (channel == null) {
+          deferred.completeExceptionally(NettyServerClientNotFoundException("Client $clientId not found"))
+          return@synchronized
         }
+
+        if (!channel.isActive) {
+          deferred.completeExceptionally(NettyServerClientNotReadyException("Client $clientId not active"))
+          return@synchronized
+        }
+
+        val finalMessage = if (_isLineBasedDecoder && !message.endsWith('\n')) {
+          message + "\n"
+        } else {
+          message
+        }
+
+        channel.writeAndFlush(finalMessage).addListener(ChannelFutureListener { future ->
+          if (future.isSuccess) {
+            deferred.complete(Unit)
+          } else {
+            deferred.completeExceptionally(NettyServerSendException(cause = future.cause()))
+          }
+        })
       }
     }
   }
