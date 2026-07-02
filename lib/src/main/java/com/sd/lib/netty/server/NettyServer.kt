@@ -155,11 +155,9 @@ class NettyServer(
     return CompletableDeferred<Unit>().also { deferred ->
       _stateFlow.value = ServerState.STARTING
       _startDeferred = deferred
-
       try {
         val bossGroup = NioEventLoopGroup(1).also { _bossGroup = it }
         val workerGroup = NioEventLoopGroup().also { _workerGroup = it }
-
         ServerBootstrap()
           .group(bossGroup, workerGroup)
           .channel(NioServerSocketChannel::class.java)
