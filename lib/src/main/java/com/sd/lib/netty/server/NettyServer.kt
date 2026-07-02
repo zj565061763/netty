@@ -81,8 +81,8 @@ class NettyServer(
     synchronized(_lock) {
       if (_stateFlow.value == ServerState.STOPPED) return
       _stateFlow.value = ServerState.STOPPED
-      _isLineBasedDecoder = false
 
+      _isLineBasedDecoder = false
       _clients.clear()
       _clientsFlow.value = emptyList()
 

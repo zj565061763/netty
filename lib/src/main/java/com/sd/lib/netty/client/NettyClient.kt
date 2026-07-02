@@ -85,16 +85,20 @@ class NettyClient(
     synchronized(_lock) {
       if (getConnectionState() == ConnectionState.DISCONNECTED) return
       _connectionStateFlow.value = ConnectionState.DISCONNECTED
+
       _isLineBasedDecoder = false
       _connection?.destroy()
       _connection = null
+
       _pendingJobs.forEach { it.cancel() }
       _coroutineScope?.cancel()
       _coroutineScope = null
       _connectDeferred?.cancel()
       _connectDeferred = null
+
       _channel?.close()
       _channel = null
+
       _group?.shutdownGracefully()
       _group = null
     }
