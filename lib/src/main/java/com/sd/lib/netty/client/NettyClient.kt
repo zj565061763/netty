@@ -276,10 +276,8 @@ private class NettyConnection(private val lock: Any) {
               }
 
               override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
-                synchronized(lock) {
-                  if (!_destroyed) {
-                    onExceptionCaught(cause)
-                  }
+                if (!_destroyed) {
+                  onExceptionCaught(cause)
                 }
                 ctx.close()
               }
