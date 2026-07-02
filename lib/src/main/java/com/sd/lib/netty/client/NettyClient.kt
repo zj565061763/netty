@@ -247,8 +247,8 @@ private class NettyConnection(private val lock: Any) {
       .channel(NioSocketChannel::class.java)
       .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeoutMillis)
       .handler(object : ChannelInitializer<SocketChannel>() {
-        override fun initChannel(channel: SocketChannel) {
-          channel.pipeline()
+        override fun initChannel(ch: SocketChannel) {
+          ch.pipeline()
             .addLast(getFrameDecoder())
             .addLast(StringDecoder(CharsetUtil.UTF_8))
             .addLast(StringEncoder(CharsetUtil.UTF_8))
