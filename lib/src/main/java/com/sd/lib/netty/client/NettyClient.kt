@@ -164,7 +164,7 @@ class NettyClient(
           host = host,
           port = port,
           connectTimeoutMillis = connectTimeoutMillis,
-          frameDecoder = getFrameDecoder().also { _isLineBasedDecoder = it is LineBasedFrameDecoder },
+          getFrameDecoder = { getFrameDecoder().also { _isLineBasedDecoder = it is LineBasedFrameDecoder } },
           onConnect = { future ->
             if (future.isSuccess) {
               _channel = future.channel()
@@ -234,7 +234,7 @@ private class NettyConnection(private val lock: Any) {
     host: String,
     port: Int,
     connectTimeoutMillis: Int,
-    frameDecoder: ChannelHandler,
+    getFrameDecoder: () -> ChannelHandler,
     onConnect: (ChannelFuture) -> Unit,
     onChannelActive: () -> Unit,
     onChannelInactive: () -> Unit,
@@ -249,7 +249,7 @@ private class NettyConnection(private val lock: Any) {
       .handler(object : ChannelInitializer<SocketChannel>() {
         override fun initChannel(channel: SocketChannel) {
           channel.pipeline()
-            .addLast(frameDecoder)
+            .addLast(getFrameDecoder())
             .addLast(StringDecoder(CharsetUtil.UTF_8))
             .addLast(StringEncoder(CharsetUtil.UTF_8))
             .addLast(object : SimpleChannelInboundHandler<String>() {
