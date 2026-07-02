@@ -41,8 +41,8 @@ class NettyServer(
   private val _lock = Any()
   private var _isLineBasedDecoder = false
 
-  private var _bossGroup: EventLoopGroup? = null
-  private var _workerGroup: EventLoopGroup? = null
+  private var _parentGroup: EventLoopGroup? = null
+  private var _childGroup: EventLoopGroup? = null
   private var _channel: Channel? = null
 
   @Volatile
@@ -95,10 +95,10 @@ class NettyServer(
       _channel?.close()
       _channel = null
 
-      _bossGroup?.shutdownGracefully()
-      _bossGroup = null
-      _workerGroup?.shutdownGracefully()
-      _workerGroup = null
+      _parentGroup?.shutdownGracefully()
+      _parentGroup = null
+      _childGroup?.shutdownGracefully()
+      _childGroup = null
     }
   }
 
@@ -156,10 +156,10 @@ class NettyServer(
       _stateFlow.value = ServerState.STARTING
       _startDeferred = deferred
       try {
-        val bossGroup = NioEventLoopGroup(1).also { _bossGroup = it }
-        val workerGroup = NioEventLoopGroup().also { _workerGroup = it }
+        val parentGroup = NioEventLoopGroup(1).also { _parentGroup = it }
+        val childGroup = NioEventLoopGroup().also { _childGroup = it }
         ServerBootstrap()
-          .group(bossGroup, workerGroup)
+          .group(parentGroup, childGroup)
           .channel(NioServerSocketChannel::class.java)
           .childHandler(object : ChannelInitializer<SocketChannel>() {
             override fun initChannel(ch: SocketChannel) {
