@@ -42,7 +42,6 @@ class NettyServer(
   private val onNettyError: (Throwable) -> Unit = { it.printStackTrace() },
 ) {
   private val _lock = Any()
-  private var _isLineBasedDecoder = false
 
   private var _serverConnection: NettyServerConnection? = null
   private var _parentGroup: EventLoopGroup? = null
@@ -90,7 +89,6 @@ class NettyServer(
       if (getState() == ServerState.STOPPED) return
       _stateFlow.value = ServerState.STOPPED
 
-      _isLineBasedDecoder = false
       _serverConnection?.destroy()
       _serverConnection = null
 
@@ -138,7 +136,7 @@ class NettyServer(
           return@synchronized
         }
 
-        val finalMessage = if (_isLineBasedDecoder && !message.endsWith('\n')) {
+        val finalMessage = if (client.isLineBasedDecoder && !message.endsWith('\n')) {
           message + "\n"
         } else {
           message
@@ -179,7 +177,7 @@ class NettyServer(
           parentGroup = parentGroup,
           childGroup = childGroup,
           port = port,
-          getFrameDecoder = { getFrameDecoder().also { _isLineBasedDecoder = it is LineBasedFrameDecoder } },
+          getFrameDecoder = { getFrameDecoder() },
           onBind = { future ->
             if (future.isSuccess) {
               _stateFlow.value = ServerState.STARTED
@@ -190,7 +188,7 @@ class NettyServer(
               stop()
             }
           },
-          onChannelActive = { channel ->
+          onChannelActive = { channel, isLineBasedDecoder ->
             val clientId = channel.id().asLongText()
             val remoteAddress = channel.remoteAddress()?.toString() ?: ""
             val socketAddress = channel.remoteAddress() as? InetSocketAddress
@@ -201,6 +199,7 @@ class NettyServer(
               ip = socketAddress?.address?.hostAddress ?: "",
               port = socketAddress?.port ?: 0,
               channel = channel,
+              isLineBasedDecoder = isLineBasedDecoder,
             )
 
             channel.attr(CLIENT_KEY).set(client)
@@ -271,6 +270,7 @@ class NettyServer(
     override val ip: String,
     override val port: Int,
     val channel: Channel,
+    val isLineBasedDecoder: Boolean,
   ) : Client
 
   private companion object {
@@ -289,7 +289,7 @@ private class NettyServerConnection(private val lock: Any) {
     port: Int,
     getFrameDecoder: () -> ChannelHandler,
     onBind: (ChannelFuture) -> Unit,
-    onChannelActive: (Channel) -> Unit,
+    onChannelActive: (Channel, Boolean) -> Unit,
     onChannelInactive: (Channel) -> Unit,
     onChannelRead: (Channel, String) -> Unit,
     onNettyError: (Throwable) -> Unit,
@@ -300,15 +300,17 @@ private class NettyServerConnection(private val lock: Any) {
       .channel(NioServerSocketChannel::class.java)
       .childHandler(object : ChannelInitializer<SocketChannel>() {
         override fun initChannel(ch: SocketChannel) {
+          val frameDecoder = getFrameDecoder()
+          val isLineBasedDecoder = frameDecoder is LineBasedFrameDecoder
           ch.pipeline()
-            .addLast(getFrameDecoder())
+            .addLast(frameDecoder)
             .addLast(StringDecoder(CharsetUtil.UTF_8))
             .addLast(StringEncoder(CharsetUtil.UTF_8))
             .addLast(object : SimpleChannelInboundHandler<String>() {
               override fun channelActive(ctx: ChannelHandlerContext) {
                 synchronized(lock) {
                   if (!_destroyed) {
-                    onChannelActive(ctx.channel())
+                    onChannelActive(ctx.channel(), isLineBasedDecoder)
                   } else {
                     ctx.channel().close()
                   }
