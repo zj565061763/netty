@@ -93,6 +93,8 @@ class NettyServer(
       _isLineBasedDecoder = false
       _serverConnection?.destroy()
       _serverConnection = null
+
+      _clients.values.forEach { it.channel.close() }
       _clients.clear()
       _clientsFlow.value = emptyList()
 
