@@ -51,7 +51,7 @@ class NettyServer(
   private var _startDeferred: CompletableDeferred<Unit>? = null
   private val _pendingJobs: MutableSet<CompletableDeferred<*>> = Collections.newSetFromMap(ConcurrentHashMap())
 
-  private val _clients: MutableMap<String, Client> = mutableMapOf()
+  private val _clients: MutableMap<String, ClientImpl> = mutableMapOf()
   private val _clientsFlow = MutableStateFlow<List<Client>>(emptyList())
   private val _messageFlow = MutableSharedFlow<ServerMessage>()
   private val _stateFlow = MutableStateFlow(ServerState.STOPPED)
@@ -189,7 +189,7 @@ class NettyServer(
           onChannelActive = { channel ->
             val clientId = channel.id().asLongText()
             val remoteAddress = channel.remoteAddress()?.toString() ?: ""
-            _clients[clientId] = Client(
+            _clients[clientId] = ClientImpl(
               id = clientId,
               channel = channel,
               remoteAddress = remoteAddress,
@@ -245,11 +245,16 @@ class NettyServer(
     val message: String,
   )
 
-  data class Client(
-    val id: String,
+  interface Client {
+    val id: String
+    val remoteAddress: String
+  }
+
+  private data class ClientImpl(
+    override val id: String,
+    override val remoteAddress: String,
     val channel: Channel,
-    val remoteAddress: String,
-  )
+  ) : Client
 }
 
 private class NettyServerConnection(private val lock: Any) {
