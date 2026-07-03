@@ -196,7 +196,6 @@ class NettyServer(
             val client = ClientImpl(
               id = clientId,
               remoteAddress = remoteAddress,
-              hostname = socketAddress?.hostName ?: "",
               ip = socketAddress?.address?.hostAddress ?: "",
               port = socketAddress?.port ?: 0,
               channel = channel,
@@ -260,7 +259,6 @@ class NettyServer(
   interface Client {
     val id: String
     val remoteAddress: String
-    val hostname: String
     val ip: String
     val port: Int
   }
@@ -268,7 +266,6 @@ class NettyServer(
   private data class ClientImpl(
     override val id: String,
     override val remoteAddress: String,
-    override val hostname: String,
     override val ip: String,
     override val port: Int,
     val channel: Channel,
