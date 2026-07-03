@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -28,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -65,15 +67,25 @@ private fun Content(
     ) {
       TextField(
         value = vm.serverIPInputState.text.toString(),
-        onValueChange = { vm.serverIPInputState.edit { replace(0, length, it) } },
+        onValueChange = { input ->
+          if (input.all { it.isDigit() || it == '.' }) {
+            vm.serverIPInputState.edit { replace(0, length, input) }
+          }
+        },
         label = { Text("IP") },
         modifier = Modifier.weight(1f),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
       )
       TextField(
         value = vm.serverPortInputState.text.toString(),
-        onValueChange = { vm.serverPortInputState.edit { replace(0, length, it) } },
+        onValueChange = { input ->
+          if (input.all { it.isDigit() }) {
+            vm.serverPortInputState.edit { replace(0, length, input) }
+          }
+        },
         label = { Text("Port") },
         modifier = Modifier.weight(1f),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
       )
     }
 
