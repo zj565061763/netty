@@ -51,13 +51,13 @@ class NettyServer(
   private var _startDeferred: CompletableDeferred<Unit>? = null
   private val _pendingJobs: MutableSet<CompletableDeferred<*>> = Collections.newSetFromMap(ConcurrentHashMap())
 
-  private val _clients: MutableMap<String, Channel> = mutableMapOf()
-  private val _clientsFlow = MutableStateFlow<List<String>>(emptyList())
+  private val _clients: MutableMap<String, Client> = mutableMapOf()
+  private val _clientsFlow = MutableStateFlow<List<Client>>(emptyList())
   private val _messageFlow = MutableSharedFlow<ServerMessage>()
   private val _stateFlow = MutableStateFlow(ServerState.STOPPED)
 
   /** 监听客户端列表 */
-  val clientsFlow: StateFlow<List<String>> = _clientsFlow.asStateFlow()
+  val clientsFlow: StateFlow<List<Client>> = _clientsFlow.asStateFlow()
 
   /** 监听所有客户端消息 */
   val messageFlow: Flow<ServerMessage> = _messageFlow.asSharedFlow()
@@ -122,12 +122,13 @@ class NettyServer(
   private suspend fun send(clientId: String, message: String) {
     pendingJob { deferred ->
       synchronized(_lock) {
-        val channel = _clients[clientId]
-        if (channel == null) {
+        val client = _clients[clientId]
+        if (client == null) {
           deferred.completeExceptionally(NettyServerClientNotFoundException())
           return@synchronized
         }
 
+        val channel = client.channel
         if (!channel.isActive) {
           deferred.completeExceptionally(NettyServerClientNotReadyException())
           return@synchronized
@@ -187,13 +188,13 @@ class NettyServer(
           },
           onChannelActive = { channel ->
             val clientId = channel.id().asLongText()
-            _clients[clientId] = channel
-            _clientsFlow.value = _clients.keys.toList()
+            _clients[clientId] = Client(id = clientId, channel = channel)
+            _clientsFlow.value = _clients.values.toList()
           },
           onChannelInactive = { channel ->
             val clientId = channel.id().asLongText()
             _clients.remove(clientId)
-            _clientsFlow.value = _clients.keys.toList()
+            _clientsFlow.value = _clients.values.toList()
           },
           onChannelRead = { channel, msg ->
             val clientId = channel.id().asLongText()
@@ -226,6 +227,8 @@ class NettyServer(
   enum class ServerState { STOPPED, STARTING, STARTED }
 
   data class ServerMessage(val clientId: String, val message: String)
+
+  data class Client(val id: String, val channel: Channel)
 }
 
 private class NettyServerConnection(private val lock: Any) {
