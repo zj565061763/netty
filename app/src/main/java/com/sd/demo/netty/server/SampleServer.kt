@@ -102,6 +102,9 @@ private fun ClientItem(
   ) {
     Text(text = "Client ID: ${client.id}")
     Text(text = "Address: ${client.remoteAddress}")
+    Text(text = "Hostname: ${client.hostname}")
+    Text(text = "IP: ${client.ip}")
+    Text(text = "Port: ${client.port}")
 
     Row(
       modifier = Modifier.fillMaxWidth(),
