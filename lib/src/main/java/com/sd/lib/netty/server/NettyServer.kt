@@ -66,6 +66,11 @@ class NettyServer(
   /** 监听服务器状态 */
   val stateFlow: StateFlow<ServerState> = _stateFlow.asStateFlow()
 
+  /** 服务器状态 */
+  fun getState(): ServerState {
+    return _stateFlow.value
+  }
+
   /** 启动服务 */
   @Throws(NettyServerException::class)
   suspend fun start() {
