@@ -42,9 +42,9 @@ class NettyServer(
   private val _lock = Any()
   private var _isLineBasedDecoder = false
 
+  private var _serverConnection: NettyServerConnection? = null
   private var _parentGroup: EventLoopGroup? = null
   private var _childGroup: EventLoopGroup? = null
-  private var _serverConnection: NettyServerConnection? = null
   private var _channel: Channel? = null
 
   @Volatile
