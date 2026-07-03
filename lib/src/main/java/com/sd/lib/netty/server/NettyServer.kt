@@ -75,7 +75,7 @@ class NettyServer(
   @Throws(NettyServerException::class)
   suspend fun start() {
     synchronized(_lock) {
-      when (_stateFlow.value) {
+      when (getState()) {
         ServerState.STOPPED -> doStart()
         ServerState.STARTING -> _startDeferred
         ServerState.STARTED -> null
@@ -86,7 +86,7 @@ class NettyServer(
   /** 停止服务 */
   fun stop() {
     synchronized(_lock) {
-      if (_stateFlow.value == ServerState.STOPPED) return
+      if (getState() == ServerState.STOPPED) return
       _stateFlow.value = ServerState.STOPPED
 
       _isLineBasedDecoder = false
@@ -222,7 +222,7 @@ class NettyServer(
     _coroutineScope?.also { return it }
     synchronized(_lock) {
       _coroutineScope?.also { return it }
-      if (_stateFlow.value == ServerState.STOPPED) return null
+      if (getState() == ServerState.STOPPED) return null
       return CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
         .also { _coroutineScope = it }
     }
