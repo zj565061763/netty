@@ -192,10 +192,10 @@ class NettyServer(
             val remoteAddress = channel.remoteAddress()?.toString() ?: ""
             val client = ClientImpl(
               id = clientId,
-              channel = channel,
               remoteAddress = remoteAddress,
-            ).also { channel.attr(CLIENT_KEY).set(it) }
-
+              channel = channel,
+            )
+            channel.attr(CLIENT_KEY).set(client)
             _clients[clientId] = client
             _clientsFlow.value = _clients.values.toList()
           },
