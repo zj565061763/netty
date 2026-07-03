@@ -120,22 +120,24 @@ class NettyClient(
     pendingJob { deferred ->
       synchronized(_lock) {
         val channel = _channel
-        if (channel != null && channel.isActive) {
-          val finalMessage = if (_isLineBasedDecoder && !message.endsWith('\n')) {
-            message + "\n"
-          } else {
-            message
-          }
-          channel.writeAndFlush(finalMessage).addListener(ChannelFutureListener { future ->
-            if (future.isSuccess) {
-              deferred.complete(Unit)
-            } else {
-              deferred.completeExceptionally(NettyClientSendException(cause = future.cause()))
-            }
-          })
-        } else {
+        if (channel == null || !channel.isActive) {
           deferred.completeExceptionally(NettyClientNotReadyException())
+          return@synchronized
         }
+
+        val finalMessage = if (_isLineBasedDecoder && !message.endsWith('\n')) {
+          message + "\n"
+        } else {
+          message
+        }
+
+        channel.writeAndFlush(finalMessage).addListener(ChannelFutureListener { future ->
+          if (future.isSuccess) {
+            deferred.complete(Unit)
+          } else {
+            deferred.completeExceptionally(NettyClientSendException(cause = future.cause()))
+          }
+        })
       }
     }
   }
