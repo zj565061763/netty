@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.sd.demo.netty.client.SampleClient
 import com.sd.demo.netty.theme.AppTheme
 
 class MainActivity : ComponentActivity() {
@@ -26,7 +27,7 @@ class MainActivity : ComponentActivity() {
       AppTheme {
         Content(
           listActivity = listOf(
-            SampleActivity::class.java,
+            SampleClient::class.java,
           ),
           onClickActivity = {
             startActivity(Intent(this, it))

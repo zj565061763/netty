@@ -1,4 +1,4 @@
-package com.sd.demo.netty
+package com.sd.demo.netty.client
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -34,7 +34,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sd.demo.netty.theme.AppTheme
 import com.sd.lib.netty.client.NettyClient
 
-class SampleActivity : ComponentActivity() {
+class SampleClient : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContent {
@@ -48,7 +48,7 @@ class SampleActivity : ComponentActivity() {
 @Composable
 private fun Content(
   modifier: Modifier = Modifier,
-  vm: SampleViewModel = viewModel(),
+  vm: SampleClientViewModel = viewModel(),
 ) {
   val clients by vm.clients.collectAsStateWithLifecycle()
 
