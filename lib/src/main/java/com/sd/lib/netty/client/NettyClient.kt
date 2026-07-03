@@ -44,6 +44,7 @@ class NettyClient(
   private val onNettyError: (Throwable) -> Unit = { it.printStackTrace() },
 ) {
   private val _lock = Any()
+  @Volatile
   private var _isLineBasedDecoder = false
 
   private var _connection: NettyConnection? = null
@@ -248,6 +249,7 @@ private class NettyConnection(private val lock: Any) {
       .group(group)
       .channel(NioSocketChannel::class.java)
       .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeoutMillis)
+      .option(ChannelOption.SO_REUSEADDR, true)
       .handler(object : ChannelInitializer<SocketChannel>() {
         override fun initChannel(ch: SocketChannel) {
           ch.pipeline()

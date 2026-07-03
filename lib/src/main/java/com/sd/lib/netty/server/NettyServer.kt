@@ -7,6 +7,7 @@ import io.netty.channel.ChannelFutureListener
 import io.netty.channel.ChannelHandler
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInitializer
+import io.netty.channel.ChannelOption
 import io.netty.channel.EventLoopGroup
 import io.netty.channel.SimpleChannelInboundHandler
 import io.netty.channel.nio.NioEventLoopGroup
@@ -298,6 +299,7 @@ private class NettyServerConnection(private val lock: Any) {
     ServerBootstrap()
       .group(parentGroup, childGroup)
       .channel(NioServerSocketChannel::class.java)
+      .option(ChannelOption.SO_REUSEADDR, true)
       .childHandler(object : ChannelInitializer<SocketChannel>() {
         override fun initChannel(ch: SocketChannel) {
           val frameDecoder = getFrameDecoder()
