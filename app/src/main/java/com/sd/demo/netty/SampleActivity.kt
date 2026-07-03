@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -52,10 +53,21 @@ private fun Content(
   val clients by vm.clients.collectAsStateWithLifecycle()
 
   Column(
-    modifier = Modifier
+    modifier = modifier
       .fillMaxSize()
       .safeContentPadding()
   ) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+      BasicTextField(
+        state = vm.serverIPInputState,
+        modifier = Modifier.weight(1f),
+      )
+      BasicTextField(
+        state = vm.serverPortInputState,
+        modifier = Modifier.weight(1f),
+      )
+    }
+
     Row(
       modifier = Modifier
         .fillMaxWidth()

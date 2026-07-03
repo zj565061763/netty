@@ -1,5 +1,6 @@
 package com.sd.demo.netty
 
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sd.lib.netty.client.NettyClient
@@ -13,10 +14,16 @@ class SampleViewModel : ViewModel() {
   private val _clients = MutableStateFlow<List<NettyClient>>(emptyList())
   val clients = _clients.asStateFlow()
 
+  val serverIPInputState = TextFieldState("127.0.0.1")
+  val serverPortInputState = TextFieldState(App.server.port.toString())
+
   fun addClient() {
     viewModelScope.launch {
       runCatching {
-        val client = NettyClient(host = "127.0.0.1", port = App.server.port)
+        val client = NettyClient(
+          host = serverIPInputState.text.toString(),
+          port = serverPortInputState.text.toString().toInt()
+        )
         client.connect()
         _clients.update { it + client }
         initClient(client)
