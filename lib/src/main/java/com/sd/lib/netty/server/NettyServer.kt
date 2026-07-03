@@ -188,7 +188,12 @@ class NettyServer(
           },
           onChannelActive = { channel ->
             val clientId = channel.id().asLongText()
-            _clients[clientId] = Client(id = clientId, channel = channel)
+            val remoteAddress = channel.remoteAddress()?.toString() ?: ""
+            _clients[clientId] = Client(
+              id = clientId,
+              channel = channel,
+              remoteAddress = remoteAddress,
+            )
             _clientsFlow.value = _clients.values.toList()
           },
           onChannelInactive = { channel ->
@@ -228,7 +233,11 @@ class NettyServer(
 
   data class ServerMessage(val clientId: String, val message: String)
 
-  data class Client(val id: String, val channel: Channel)
+  data class Client(
+    val id: String,
+    val channel: Channel,
+    val remoteAddress: String,
+  )
 }
 
 private class NettyServerConnection(private val lock: Any) {
