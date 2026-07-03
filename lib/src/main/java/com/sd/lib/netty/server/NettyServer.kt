@@ -124,12 +124,12 @@ class NettyServer(
       synchronized(_lock) {
         val channel = _clients[clientId]
         if (channel == null) {
-          deferred.completeExceptionally(NettyServerClientNotFoundException("Client $clientId not found"))
+          deferred.completeExceptionally(NettyServerClientNotFoundException())
           return@synchronized
         }
 
         if (!channel.isActive) {
-          deferred.completeExceptionally(NettyServerClientNotReadyException("Client $clientId not active"))
+          deferred.completeExceptionally(NettyServerClientNotReadyException())
           return@synchronized
         }
 
