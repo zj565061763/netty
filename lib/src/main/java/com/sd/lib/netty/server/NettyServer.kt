@@ -15,6 +15,7 @@ import io.netty.channel.socket.nio.NioServerSocketChannel
 import io.netty.handler.codec.LineBasedFrameDecoder
 import io.netty.handler.codec.string.StringDecoder
 import io.netty.handler.codec.string.StringEncoder
+import io.netty.util.AttributeKey
 import io.netty.util.CharsetUtil
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -189,11 +190,13 @@ class NettyServer(
           onChannelActive = { channel ->
             val clientId = channel.id().asLongText()
             val remoteAddress = channel.remoteAddress()?.toString() ?: ""
-            _clients[clientId] = ClientImpl(
+            val client = ClientImpl(
               id = clientId,
               channel = channel,
               remoteAddress = remoteAddress,
-            )
+            ).also { channel.attr(CLIENT_KEY).set(it) }
+
+            _clients[clientId] = client
             _clientsFlow.value = _clients.values.toList()
           },
           onChannelInactive = { channel ->
@@ -202,9 +205,11 @@ class NettyServer(
             _clientsFlow.value = _clients.values.toList()
           },
           onChannelRead = { channel, msg ->
-            val clientId = channel.id().asLongText()
-            getCoroutineScope()?.launch {
-              _messageFlow.emit(ServerMessage(clientId, msg))
+            val client = channel.attr(CLIENT_KEY).get()
+            if (client != null) {
+              getCoroutineScope()?.launch {
+                _messageFlow.emit(ServerMessage(client, msg))
+              }
             }
           },
           onNettyError = { e ->
@@ -241,7 +246,7 @@ class NettyServer(
   }
 
   data class ServerMessage(
-    val clientId: String,
+    val client: Client,
     val message: String,
   )
 
@@ -255,6 +260,10 @@ class NettyServer(
     override val remoteAddress: String,
     val channel: Channel,
   ) : Client
+
+  private companion object {
+    val CLIENT_KEY = AttributeKey.valueOf<Client>("NettyServer.Client")
+  }
 }
 
 private class NettyServerConnection(private val lock: Any) {
