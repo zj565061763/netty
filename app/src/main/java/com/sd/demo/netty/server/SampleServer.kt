@@ -57,6 +57,10 @@ private fun Content(
       modifier = Modifier.padding(8.dp)
     )
     Text(
+      text = "IP: ${vm.ipAddress}",
+      modifier = Modifier.padding(8.dp)
+    )
+    Text(
       text = "Port: ${vm.port}",
       modifier = Modifier.padding(8.dp)
     )
