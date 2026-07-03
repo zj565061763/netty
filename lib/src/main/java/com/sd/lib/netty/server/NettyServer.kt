@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import java.net.InetSocketAddress
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
@@ -190,11 +191,17 @@ class NettyServer(
           onChannelActive = { channel ->
             val clientId = channel.id().asLongText()
             val remoteAddress = channel.remoteAddress()?.toString() ?: ""
+            val socketAddress = channel.remoteAddress() as? InetSocketAddress
+
             val client = ClientImpl(
               id = clientId,
               remoteAddress = remoteAddress,
+              hostname = socketAddress?.hostName ?: "",
+              ip = socketAddress?.address?.hostAddress ?: "",
+              port = socketAddress?.port ?: 0,
               channel = channel,
             )
+
             channel.attr(CLIENT_KEY).set(client)
             _clients[clientId] = client
             _clientsFlow.value = _clients.values.toList()
@@ -253,11 +260,17 @@ class NettyServer(
   interface Client {
     val id: String
     val remoteAddress: String
+    val hostname: String
+    val ip: String
+    val port: Int
   }
 
   private data class ClientImpl(
     override val id: String,
     override val remoteAddress: String,
+    override val hostname: String,
+    override val ip: String,
+    override val port: Int,
     val channel: Channel,
   ) : Client
 
