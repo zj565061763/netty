@@ -208,6 +208,7 @@ class NettyServer(
             _clientsFlow.value = _clients.values.toList()
           },
           onChannelInactive = { channel ->
+            channel.attr(CLIENT_KEY).set(null)
             val clientId = channel.id().asLongText()
             _clients.remove(clientId)
             _clientsFlow.value = _clients.values.toList()
