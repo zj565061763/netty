@@ -229,9 +229,21 @@ class NettyServer(
     }
   }
 
-  enum class ServerState { STOPPED, STARTING, STARTED }
+  enum class ServerState {
+    /** 停止 */
+    STOPPED,
 
-  data class ServerMessage(val clientId: String, val message: String)
+    /** 启动中 */
+    STARTING,
+
+    /** 已启动 */
+    STARTED
+  }
+
+  data class ServerMessage(
+    val clientId: String,
+    val message: String,
+  )
 
   data class Client(
     val id: String,
