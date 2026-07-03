@@ -2,6 +2,7 @@ package com.sd.lib.netty.server
 
 import io.netty.bootstrap.ServerBootstrap
 import io.netty.channel.Channel
+import io.netty.channel.ChannelFuture
 import io.netty.channel.ChannelFutureListener
 import io.netty.channel.ChannelHandler
 import io.netty.channel.ChannelHandlerContext
@@ -43,6 +44,7 @@ class NettyServer(
 
   private var _parentGroup: EventLoopGroup? = null
   private var _childGroup: EventLoopGroup? = null
+  private var _serverConnection: NettyServerConnection? = null
   private var _channel: Channel? = null
 
   @Volatile
@@ -83,6 +85,8 @@ class NettyServer(
       _stateFlow.value = ServerState.STOPPED
 
       _isLineBasedDecoder = false
+      _serverConnection?.destroy()
+      _serverConnection = null
       _clients.clear()
       _clientsFlow.value = emptyList()
 
@@ -165,75 +169,46 @@ class NettyServer(
       try {
         val parentGroup = NioEventLoopGroup(1).also { _parentGroup = it }
         val childGroup = NioEventLoopGroup().also { _childGroup = it }
-        ServerBootstrap()
-          .group(parentGroup, childGroup)
-          .channel(NioServerSocketChannel::class.java)
-          .childHandler(object : ChannelInitializer<SocketChannel>() {
-            override fun initChannel(ch: SocketChannel) {
-              val decoder = getFrameDecoder().also { _isLineBasedDecoder = it is LineBasedFrameDecoder }
-              ch.pipeline()
-                .addLast(decoder)
-                .addLast(StringDecoder(CharsetUtil.UTF_8))
-                .addLast(StringEncoder(CharsetUtil.UTF_8))
-                .addLast(ServerHandler())
+        NettyServerConnection(_lock).also { _serverConnection = it }.start(
+          parentGroup = parentGroup,
+          childGroup = childGroup,
+          port = port,
+          getFrameDecoder = { getFrameDecoder().also { _isLineBasedDecoder = it is LineBasedFrameDecoder } },
+          onBind = { future ->
+            if (future.isSuccess) {
+              _channel = future.channel()
+              _stateFlow.value = ServerState.STARTED
+              deferred.complete(Unit)
+              _startDeferred = null
+            } else {
+              deferred.completeExceptionally(NettyServerStartException(future.cause()))
+              stop()
             }
-          })
-          .bind(port).addListener(ChannelFutureListener { future ->
-            synchronized(_lock) {
-              if (_stateFlow.value == ServerState.STOPPED) {
-                future.channel().close()
-              } else {
-                if (future.isSuccess) {
-                  _channel = future.channel()
-                  _stateFlow.value = ServerState.STARTED
-                  deferred.complete(Unit)
-                  _startDeferred = null
-                } else {
-                  deferred.completeExceptionally(NettyServerStartException(future.cause()))
-                  stop()
-                }
-              }
+          },
+          onChannelActive = { channel ->
+            val clientId = channel.id().asLongText()
+            _clients[clientId] = channel
+            _clientsFlow.value = _clients.keys.toList()
+          },
+          onChannelInactive = { channel ->
+            val clientId = channel.id().asLongText()
+            _clients.remove(clientId)
+            _clientsFlow.value = _clients.keys.toList()
+          },
+          onChannelRead = { channel, msg ->
+            val clientId = channel.id().asLongText()
+            getCoroutineScope()?.launch {
+              _messageFlow.emit(ServerMessage(clientId, msg))
             }
-          })
+          },
+          onNettyError = { e ->
+            onNettyError(e)
+          }
+        )
       } catch (e: Throwable) {
         stop()
         throw NettyServerStartException(e)
       }
-    }
-  }
-
-  private inner class ServerHandler : SimpleChannelInboundHandler<String>() {
-    override fun channelActive(ctx: ChannelHandlerContext) {
-      val channel = ctx.channel()
-      val clientId = channel.id().asLongText()
-      synchronized(_lock) {
-        if (_stateFlow.value != ServerState.STOPPED) {
-          _clients[clientId] = channel
-          _clientsFlow.value = _clients.keys.toList()
-        } else {
-          channel.close()
-        }
-      }
-    }
-
-    override fun channelInactive(ctx: ChannelHandlerContext) {
-      val clientId = ctx.channel().id().asLongText()
-      synchronized(_lock) {
-        _clients.remove(clientId)
-        _clientsFlow.value = _clients.keys.toList()
-      }
-    }
-
-    override fun channelRead0(ctx: ChannelHandlerContext, msg: String) {
-      val clientId = ctx.channel().id().asLongText()
-      getCoroutineScope()?.launch {
-        _messageFlow.emit(ServerMessage(clientId, msg))
-      }
-    }
-
-    override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
-      onNettyError(cause)
-      ctx.close()
     }
   }
 
@@ -251,4 +226,79 @@ class NettyServer(
   enum class ServerState { STOPPED, STARTING, STARTED }
 
   data class ServerMessage(val clientId: String, val message: String)
+}
+
+private class NettyServerConnection(private val lock: Any) {
+  @Volatile
+  private var _destroyed = false
+
+  fun start(
+    parentGroup: EventLoopGroup,
+    childGroup: EventLoopGroup,
+    port: Int,
+    getFrameDecoder: () -> ChannelHandler,
+    onBind: (ChannelFuture) -> Unit,
+    onChannelActive: (Channel) -> Unit,
+    onChannelInactive: (Channel) -> Unit,
+    onChannelRead: (Channel, String) -> Unit,
+    onNettyError: (Throwable) -> Unit,
+  ) {
+    if (_destroyed) return
+    ServerBootstrap()
+      .group(parentGroup, childGroup)
+      .channel(NioServerSocketChannel::class.java)
+      .childHandler(object : ChannelInitializer<SocketChannel>() {
+        override fun initChannel(ch: SocketChannel) {
+          ch.pipeline()
+            .addLast(getFrameDecoder())
+            .addLast(StringDecoder(CharsetUtil.UTF_8))
+            .addLast(StringEncoder(CharsetUtil.UTF_8))
+            .addLast(object : SimpleChannelInboundHandler<String>() {
+              override fun channelActive(ctx: ChannelHandlerContext) {
+                synchronized(lock) {
+                  if (!_destroyed) {
+                    onChannelActive(ctx.channel())
+                  } else {
+                    ctx.channel().close()
+                  }
+                }
+              }
+
+              override fun channelInactive(ctx: ChannelHandlerContext) {
+                synchronized(lock) {
+                  if (!_destroyed) {
+                    onChannelInactive(ctx.channel())
+                  }
+                }
+              }
+
+              override fun channelRead0(ctx: ChannelHandlerContext, msg: String) {
+                if (!_destroyed) {
+                  onChannelRead(ctx.channel(), msg)
+                }
+              }
+
+              override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
+                if (!_destroyed) {
+                  onNettyError(cause)
+                }
+                ctx.close()
+              }
+            })
+        }
+      })
+      .bind(port).addListener(ChannelFutureListener { future ->
+        synchronized(lock) {
+          if (_destroyed) {
+            runCatching { future.channel().close() }
+          } else {
+            onBind(future)
+          }
+        }
+      })
+  }
+
+  fun destroy() {
+    _destroyed = true
+  }
 }
