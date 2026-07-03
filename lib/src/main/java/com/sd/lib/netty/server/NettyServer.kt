@@ -45,7 +45,6 @@ class NettyServer(
   private var _serverConnection: NettyServerConnection? = null
   private var _parentGroup: EventLoopGroup? = null
   private var _childGroup: EventLoopGroup? = null
-  private var _channel: Channel? = null
 
   @Volatile
   private var _coroutineScope: CoroutineScope? = null
@@ -100,9 +99,6 @@ class NettyServer(
       _coroutineScope = null
       _startDeferred?.cancel()
       _startDeferred = null
-
-      _channel?.close()
-      _channel = null
 
       _parentGroup?.shutdownGracefully()
       _parentGroup = null
@@ -181,7 +177,6 @@ class NettyServer(
           getFrameDecoder = { getFrameDecoder().also { _isLineBasedDecoder = it is LineBasedFrameDecoder } },
           onBind = { future ->
             if (future.isSuccess) {
-              _channel = future.channel()
               _stateFlow.value = ServerState.STARTED
               deferred.complete(Unit)
               _startDeferred = null
@@ -236,6 +231,7 @@ class NettyServer(
 private class NettyServerConnection(private val lock: Any) {
   @Volatile
   private var _destroyed = false
+  private var _channel: Channel? = null
 
   fun start(
     parentGroup: EventLoopGroup,
@@ -297,6 +293,9 @@ private class NettyServerConnection(private val lock: Any) {
           if (_destroyed) {
             runCatching { future.channel().close() }
           } else {
+            if (future.isSuccess) {
+              _channel = future.channel()
+            }
             onBind(future)
           }
         }
@@ -305,5 +304,7 @@ private class NettyServerConnection(private val lock: Any) {
 
   fun destroy() {
     _destroyed = true
+    _channel?.close()
+    _channel = null
   }
 }
