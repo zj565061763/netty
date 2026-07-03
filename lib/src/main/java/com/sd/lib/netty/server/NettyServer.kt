@@ -51,7 +51,7 @@ class NettyServer(
   private var _startDeferred: CompletableDeferred<Unit>? = null
   private val _pendingJobs: MutableSet<CompletableDeferred<*>> = Collections.newSetFromMap(ConcurrentHashMap())
 
-  private val _clients: MutableMap<String, Channel> = ConcurrentHashMap()
+  private val _clients: MutableMap<String, Channel> = mutableMapOf()
   private val _clientsFlow = MutableStateFlow<List<String>>(emptyList())
   private val _messageFlow = MutableSharedFlow<ServerMessage>()
   private val _stateFlow = MutableStateFlow(ServerState.STOPPED)
