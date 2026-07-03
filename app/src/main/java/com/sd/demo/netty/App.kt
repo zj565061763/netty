@@ -31,6 +31,11 @@ class App : Application() {
       launch {
         server.messageFlow.collect {
           logMsg { "server message client:${it.client}|message:${it.message}" }
+          runCatching {
+            server.send(clientId = it.client.id, message = it.message)
+          }.onFailure {
+            logMsg { "server response message error:${it.stackTraceToString()}" }
+          }
         }
       }
     }
