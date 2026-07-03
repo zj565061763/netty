@@ -3,6 +3,7 @@ package com.sd.demo.netty.client
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -57,13 +57,22 @@ private fun Content(
       .fillMaxSize()
       .safeContentPadding()
   ) {
-    Row(modifier = Modifier.fillMaxWidth()) {
-      BasicTextField(
-        state = vm.serverIPInputState,
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(8.dp),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      TextField(
+        value = vm.serverIPInputState.text.toString(),
+        onValueChange = { vm.serverIPInputState.edit { replace(0, length, it) } },
+        label = { Text("IP") },
         modifier = Modifier.weight(1f),
       )
-      BasicTextField(
-        state = vm.serverPortInputState,
+      TextField(
+        value = vm.serverPortInputState.text.toString(),
+        onValueChange = { vm.serverPortInputState.edit { replace(0, length, it) } },
+        label = { Text("Port") },
         modifier = Modifier.weight(1f),
       )
     }
