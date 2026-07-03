@@ -3,7 +3,6 @@ package com.sd.demo.netty.client
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.sd.demo.netty.App
 import com.sd.demo.netty.logMsg
 import com.sd.lib.netty.client.NettyClient
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +16,7 @@ class SampleClientViewModel : ViewModel() {
   val clients = _clients.asStateFlow()
 
   val serverIPInputState = TextFieldState("127.0.0.1")
-  val serverPortInputState = TextFieldState(App.server.port.toString())
+  val serverPortInputState = TextFieldState("8888")
 
   fun addClient() {
     viewModelScope.launch {
