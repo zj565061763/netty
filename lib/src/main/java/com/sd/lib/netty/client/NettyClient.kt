@@ -85,6 +85,31 @@ class NettyClient(
 
   /** 断开连接 */
   fun disconnect() {
+    disconnectWithException(null)
+  }
+
+  /** 发送消息，如果超时则抛出[NettyClientTimeoutException] */
+  @Throws(NettyClientException::class)
+  suspend fun send(message: String, timeoutMillis: Long = 10000L) {
+    val deferred = CompletableDeferred<Unit>()
+    try {
+      _sendingJobs.add(deferred)
+      val future = sendMessage(message, deferred)
+      try {
+        withTimeout(timeoutMillis.milliseconds) { deferred.await() }
+      } catch (_: TimeoutCancellationException) {
+        future.cancel(true)
+        throw NettyClientTimeoutException()
+      } catch (e: CancellationException) {
+        future.cancel(true)
+        throw e
+      }
+    } finally {
+      _sendingJobs.remove(deferred)
+    }
+  }
+
+  private fun disconnectWithException(exception: Throwable?) {
     synchronized(_lock) {
       _connection?.destroy()
       _connection = null
@@ -100,32 +125,19 @@ class NettyClient(
       _messageScope?.cancel()
       _messageScope = null
 
-      _connectDeferred?.completeExceptionally(NettyClientDisconnectedException())
+      if (exception != null) {
+        _connectDeferred?.completeExceptionally(exception)
+      } else {
+        _connectDeferred?.cancel()
+      }
       _connectDeferred = null
 
-      _sendingJobs.forEach { it.completeExceptionally(NettyClientDisconnectedException()) }
-      _connectionStateFlow.value = ConnectionState.DISCONNECTED
-    }
-  }
-
-  /** 发送消息，如果超时则抛出[NettyClientSendTimeoutException] */
-  @Throws(NettyClientException::class)
-  suspend fun send(message: String, timeoutMillis: Long = 10000L) {
-    val deferred = CompletableDeferred<Unit>()
-    try {
-      _sendingJobs.add(deferred)
-      val future = sendMessage(message, deferred)
-      try {
-        withTimeout(timeoutMillis.milliseconds) { deferred.await() }
-      } catch (_: TimeoutCancellationException) {
-        future.cancel(true)
-        throw NettyClientSendTimeoutException()
-      } catch (e: CancellationException) {
-        future.cancel(true)
-        throw e
+      if (exception != null) {
+        _sendingJobs.forEach { it.completeExceptionally(exception) }
+      } else {
+        _sendingJobs.forEach { it.cancel() }
       }
-    } finally {
-      _sendingJobs.remove(deferred)
+      _connectionStateFlow.value = ConnectionState.DISCONNECTED
     }
   }
 
@@ -149,12 +161,12 @@ class NettyClient(
       try {
         channel.writeAndFlush(msg)
       } catch (e: Throwable) {
-        throw NettyClientSendException(e)
+        throw NettyClientException(cause = e)
       }.addListener(ChannelFutureListener { future ->
         if (future.isSuccess) {
           deferred.complete(Unit)
         } else {
-          deferred.completeExceptionally(NettyClientSendException(cause = future.cause()))
+          deferred.completeExceptionally(NettyClientException(cause = future.cause()))
         }
       })
     }
@@ -178,15 +190,15 @@ class NettyClient(
               _channel = future.channel()
               setConnected()
             } else {
-              deferred.completeExceptionally(NettyClientConnectException(future.cause()))
-              disconnect()
+              val exception = NettyClientException(cause = future.cause())
+              disconnectWithException(exception)
             }
           },
           onChannelActive = {
             setConnected()
           },
           onChannelInactive = {
-            disconnect()
+            disconnectWithException(null)
           },
           onChannelRead0 = { msg ->
             getMessageScope()?.launch { _messageFlow.emit(msg) }
@@ -196,8 +208,9 @@ class NettyClient(
           }
         )
       } catch (e: Throwable) {
-        disconnect()
-        throw NettyClientConnectException(e)
+        val exception = NettyClientException(cause = e)
+        disconnectWithException(exception)
+        throw exception
       }
     }
   }
