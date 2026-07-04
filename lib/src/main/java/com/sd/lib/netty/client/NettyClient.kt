@@ -99,10 +99,10 @@ class NettyClient(
       _messageScope?.cancel()
       _messageScope = null
 
-      _connectDeferred?.cancel()
+      _connectDeferred?.completeExceptionally(NettyClientDisconnectedException())
       _connectDeferred = null
 
-      _sendingJobs.forEach { it.cancel() }
+      _sendingJobs.forEach { it.completeExceptionally(NettyClientDisconnectedException()) }
       _connectionStateFlow.value = ConnectionState.DISCONNECTED
     }
   }
