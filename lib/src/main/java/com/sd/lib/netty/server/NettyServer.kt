@@ -56,7 +56,6 @@ class NettyServer(
   private val _sendingJobs: MutableSet<CompletableDeferred<*>> = Collections.newSetFromMap(ConcurrentHashMap())
 
   private val _clientsInfo: MutableMap<String, ClientInfo> = mutableMapOf()
-  private val _clients: MutableMap<String, Client> = mutableMapOf()
 
   private val _clientsFlow = MutableStateFlow<List<Client>>(emptyList())
   private val _messageFlow = MutableSharedFlow<ServerMessage>()
@@ -164,7 +163,6 @@ class NettyServer(
       _childGroup = null
 
       _clientsInfo.clear()
-      _clients.clear()
       _clientsFlow.value = emptyList()
 
       _messageScope?.cancel()
@@ -222,21 +220,20 @@ class NettyServer(
             )
 
             val clientInfo = ClientInfo(
+              client = client,
               channel = channel,
               isLineBasedDecoder = isLineBasedDecoder,
             )
 
             channel.attr(CLIENT_KEY).set(client)
             _clientsInfo[clientId] = clientInfo
-            _clients[clientId] = client
-            _clientsFlow.value = _clients.values.toList()
+            _clientsFlow.value = _clientsInfo.values.map { it.client }
           },
           onChannelInactive = { channel ->
             channel.attr(CLIENT_KEY).set(null)
             val clientId = channel.id().asLongText()
-            _clientsInfo.remove(clientId)
-            if (_clients.remove(clientId) != null) {
-              _clientsFlow.value = _clients.values.toList()
+            if (_clientsInfo.remove(clientId) != null) {
+              _clientsFlow.value = _clientsInfo.values.map { it.client }
             }
           },
           onChannelRead = { channel, msg ->
@@ -294,6 +291,7 @@ class NettyServer(
   )
 
   private class ClientInfo(
+    val client: Client,
     val channel: Channel,
     val isLineBasedDecoder: Boolean,
   )
