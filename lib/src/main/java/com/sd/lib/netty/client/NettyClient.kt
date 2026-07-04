@@ -71,7 +71,11 @@ class NettyClient(
     return _connectionStateFlow.value
   }
 
-  /** 连接 */
+  /**
+   * 开始连接，
+   * 如果正在连接时，[disconnect]被触发，可能抛出[CancellationException]，
+   * 如果正在连接时，有其他协程调用此方法，则该协程会挂起
+   */
   @Throws(NettyClientException::class)
   suspend fun connect() {
     synchronized(_lock) {
@@ -88,7 +92,11 @@ class NettyClient(
     disconnectWithException(null)
   }
 
-  /** 发送消息，如果超时则抛出[NettyClientTimeoutException] */
+  /**
+   * 发送消息，
+   * 如果发送时，[disconnect]被触发，可能抛出[CancellationException],
+   * 如果超时则抛出[NettyClientTimeoutException]，超时不代表消息一定没发出去
+   */
   @Throws(NettyClientException::class)
   suspend fun send(
     message: String,
