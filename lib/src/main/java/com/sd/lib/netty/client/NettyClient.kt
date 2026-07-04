@@ -242,8 +242,10 @@ class NettyClient(
   enum class ConnectionState {
     /** 断开连接 */
     DISCONNECTED,
+
     /** 连接中 */
     CONNECTING,
+
     /** 已连接 */
     CONNECTED
   }
