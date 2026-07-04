@@ -14,7 +14,6 @@ import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioSocketChannel
 import io.netty.handler.codec.LineBasedFrameDecoder
-import io.netty.handler.codec.TooLongFrameException
 import io.netty.handler.codec.string.StringDecoder
 import io.netty.handler.codec.string.StringEncoder
 import io.netty.util.CharsetUtil
@@ -213,13 +212,9 @@ class NettyClient(
             getMessageScope()?.launch { _messageFlow.emit(msg) }
           },
           onExceptionCaught = { cause ->
-            if (cause.extHasCause<TooLongFrameException>()) {
-              runCatching { onNettyError(cause) }
-            } else {
-              val exception = NettyClientException(cause = cause)
-              disconnectWithException(exception)
-              runCatching { onNettyError(cause) }
-            }
+            val exception = NettyClientException(cause = cause)
+            disconnectWithException(exception)
+            runCatching { onNettyError(cause) }
           },
         )
       } catch (e: Throwable) {
@@ -338,13 +333,4 @@ private class NettyConnection(private val lock: Any) {
   fun destroy() {
     _destroyed = true
   }
-}
-
-private inline fun <reified T : Throwable> Throwable.extHasCause(): Boolean {
-  var current: Throwable? = this
-  while (current != null) {
-    if (current is T) return true
-    current = current.cause
-  }
-  return false
 }
