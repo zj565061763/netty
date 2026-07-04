@@ -256,7 +256,7 @@ class NettyServer(
     _messageScope?.also { return it }
     synchronized(_lock) {
       _messageScope?.also { return it }
-      if (getState() == ServerState.STOPPED) return null
+      if (_connection == null) return null
       return CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
         .also { _messageScope = it }
     }
