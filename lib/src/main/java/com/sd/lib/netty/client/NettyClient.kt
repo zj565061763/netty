@@ -53,7 +53,7 @@ class NettyClient(
   @Volatile
   private var _isLineBasedDecoder = false
   @Volatile
-  private var _coroutineScope: CoroutineScope? = null
+  private var _messageScope: CoroutineScope? = null
   private var _connectDeferred: CompletableDeferred<Unit>? = null
   private val _sendingJobs: MutableSet<CompletableDeferred<*>> = Collections.newSetFromMap(ConcurrentHashMap())
 
@@ -99,8 +99,8 @@ class NettyClient(
 
       _isLineBasedDecoder = false
 
-      _coroutineScope?.cancel()
-      _coroutineScope = null
+      _messageScope?.cancel()
+      _messageScope = null
 
       _connectDeferred?.cancel()
       _connectDeferred = null
@@ -178,7 +178,7 @@ class NettyClient(
             disconnect()
           },
           onChannelRead0 = { msg ->
-            getCoroutineScope()?.launch { _messageFlow.emit(msg) }
+            getMessageScope()?.launch { _messageFlow.emit(msg) }
           },
           onExceptionCaught = { e ->
             onNettyError(e)
@@ -192,13 +192,13 @@ class NettyClient(
   }
 
   @OptIn(ExperimentalCoroutinesApi::class)
-  private fun getCoroutineScope(): CoroutineScope? {
-    _coroutineScope?.also { return it }
+  private fun getMessageScope(): CoroutineScope? {
+    _messageScope?.also { return it }
     synchronized(_lock) {
-      _coroutineScope?.also { return it }
+      _messageScope?.also { return it }
       if (getConnectionState() == ConnectionState.DISCONNECTED) return null
       return CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
-        .also { _coroutineScope = it }
+        .also { _messageScope = it }
     }
   }
 
