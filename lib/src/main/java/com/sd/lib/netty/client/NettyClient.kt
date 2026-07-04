@@ -126,6 +126,7 @@ class NettyClient(
     }
   }
 
+  /** 发送消息 */
   @Throws(NettyClientException::class)
   private fun sendMessage(message: String, deferred: CompletableDeferred<Unit>): ChannelFuture {
     return synchronized(_lock) {
@@ -150,6 +151,7 @@ class NettyClient(
     }
   }
 
+  /** 开始连接 */
   private fun doConnect(): CompletableDeferred<Unit> {
     return CompletableDeferred<Unit>().also { deferred ->
       _connectionStateFlow.value = ConnectionState.CONNECTING
@@ -202,6 +204,7 @@ class NettyClient(
     }
   }
 
+  /** 设置为已连接 */
   private fun setConnected() {
     if (_group == null) return
     if (_channel == null) return
