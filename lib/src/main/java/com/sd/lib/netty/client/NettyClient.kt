@@ -14,6 +14,7 @@ import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioSocketChannel
 import io.netty.handler.codec.LineBasedFrameDecoder
+import io.netty.handler.codec.TooLongFrameException
 import io.netty.handler.codec.string.StringDecoder
 import io.netty.handler.codec.string.StringEncoder
 import io.netty.util.CharsetUtil
@@ -212,10 +213,14 @@ class NettyClient(
             getMessageScope()?.launch { _messageFlow.emit(msg) }
           },
           onExceptionCaught = { cause ->
-            val exception = NettyClientException(cause = cause)
-            disconnectWithException(exception)
-            runCatching { onNettyError(cause) }
-          }
+            if (cause.extHasCause<TooLongFrameException>()) {
+              runCatching { onNettyError(cause) }
+            } else {
+              val exception = NettyClientException(cause = cause)
+              disconnectWithException(exception)
+              runCatching { onNettyError(cause) }
+            }
+          },
         )
       } catch (e: Throwable) {
         val exception = NettyClientException(cause = e)
@@ -310,11 +315,9 @@ private class NettyConnection(private val lock: Any) {
               }
 
               override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
-                try {
-                  if (!_destroyed) {
-                    onExceptionCaught(cause)
-                  }
-                } finally {
+                if (!_destroyed) {
+                  onExceptionCaught(cause)
+                } else {
                   ctx.close()
                 }
               }
@@ -335,4 +338,13 @@ private class NettyConnection(private val lock: Any) {
   fun destroy() {
     _destroyed = true
   }
+}
+
+private inline fun <reified T : Throwable> Throwable.extHasCause(): Boolean {
+  var current: Throwable? = this
+  while (current != null) {
+    if (current is T) return true
+    current = current.cause
+  }
+  return false
 }
