@@ -109,6 +109,38 @@ class NettyClient(
     }
   }
 
+  /** 发送消息 */
+  @Throws(NettyClientException::class)
+  private fun sendMessage(message: String, deferred: CompletableDeferred<Unit>): ChannelFuture {
+    return synchronized(_lock) {
+      val channel = _channel
+      if (channel == null || !channel.isActive) {
+        throw NettyClientNotReadyException()
+      }
+
+      val finalMessage = if (_isLineBasedDecoder && !message.endsWith('\n')) {
+        message + "\n"
+      } else {
+        message
+      }
+
+      channel to finalMessage
+    }.let { (channel, msg) ->
+      try {
+        channel.writeAndFlush(msg)
+      } catch (e: Throwable) {
+        throw NettyClientException(cause = e)
+      }.addListener(ChannelFutureListener { future ->
+        if (future.isSuccess) {
+          deferred.complete(Unit)
+        } else {
+          deferred.completeExceptionally(NettyClientException(cause = future.cause()))
+        }
+      })
+    }
+  }
+
+  /** 断开连接 */
   private fun disconnectWithException(exception: Throwable?) {
     synchronized(_lock) {
       _connection?.destroy()
@@ -138,37 +170,6 @@ class NettyClient(
         _sendingJobs.forEach { it.cancel() }
       }
       _connectionStateFlow.value = ConnectionState.DISCONNECTED
-    }
-  }
-
-  /** 发送消息 */
-  @Throws(NettyClientException::class)
-  private fun sendMessage(message: String, deferred: CompletableDeferred<Unit>): ChannelFuture {
-    return synchronized(_lock) {
-      val channel = _channel
-      if (channel == null || !channel.isActive) {
-        throw NettyClientNotReadyException()
-      }
-
-      val finalMessage = if (_isLineBasedDecoder && !message.endsWith('\n')) {
-        message + "\n"
-      } else {
-        message
-      }
-
-      channel to finalMessage
-    }.let { (channel, msg) ->
-      try {
-        channel.writeAndFlush(msg)
-      } catch (e: Throwable) {
-        throw NettyClientException(cause = e)
-      }.addListener(ChannelFutureListener { future ->
-        if (future.isSuccess) {
-          deferred.complete(Unit)
-        } else {
-          deferred.completeExceptionally(NettyClientException(cause = future.cause()))
-        }
-      })
     }
   }
 
