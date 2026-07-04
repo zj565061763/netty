@@ -196,14 +196,14 @@ class NettyClient(
           onConnect = { future ->
             if (future.isSuccess) {
               _channel = future.channel()
-              setConnected()
+              setConnectedLocked()
             } else {
               val exception = NettyClientException(cause = future.cause())
               disconnectWithException(exception)
             }
           },
           onChannelActive = {
-            setConnected()
+            setConnectedLocked()
           },
           onChannelInactive = {
             disconnectWithException(null)
@@ -235,7 +235,7 @@ class NettyClient(
   }
 
   /** 设置为已连接 */
-  private fun setConnected() {
+  private fun setConnectedLocked() {
     if (_group == null) return
     if (_channel == null) return
     if (getConnectionState() == ConnectionState.CONNECTING) {
