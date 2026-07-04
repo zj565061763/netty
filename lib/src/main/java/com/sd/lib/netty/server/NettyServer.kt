@@ -51,7 +51,7 @@ class NettyServer(
   private var _childGroup: EventLoopGroup? = null
 
   @Volatile
-  private var _coroutineScope: CoroutineScope? = null
+  private var _messageScope: CoroutineScope? = null
   private var _startDeferred: CompletableDeferred<Unit>? = null
   private val _sendingJobs: MutableSet<CompletableDeferred<*>> = Collections.newSetFromMap(ConcurrentHashMap())
 
@@ -160,8 +160,8 @@ class NettyServer(
       _clients.clear()
       _clientsFlow.value = emptyList()
 
-      _coroutineScope?.cancel()
-      _coroutineScope = null
+      _messageScope?.cancel()
+      _messageScope = null
 
       if (exception != null) {
         _startDeferred?.completeExceptionally(exception)
@@ -230,7 +230,7 @@ class NettyServer(
           onChannelRead = { channel, msg ->
             val client = channel.attr(CLIENT_KEY).get()
             if (client != null) {
-              getCoroutineScope()?.launch {
+              getMessageScope()?.launch {
                 _messageFlow.emit(ServerMessage(client, msg))
               }
             }
@@ -248,13 +248,13 @@ class NettyServer(
   }
 
   @OptIn(ExperimentalCoroutinesApi::class)
-  private fun getCoroutineScope(): CoroutineScope? {
-    _coroutineScope?.also { return it }
+  private fun getMessageScope(): CoroutineScope? {
+    _messageScope?.also { return it }
     synchronized(_lock) {
-      _coroutineScope?.also { return it }
+      _messageScope?.also { return it }
       if (getState() == ServerState.STOPPED) return null
       return CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
-        .also { _coroutineScope = it }
+        .also { _messageScope = it }
     }
   }
 
