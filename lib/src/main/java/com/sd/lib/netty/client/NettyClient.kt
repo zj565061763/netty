@@ -141,7 +141,9 @@ class NettyClient(
         message
       }
 
-      channel.writeAndFlush(finalMessage).addListener(ChannelFutureListener { future ->
+      channel to finalMessage
+    }.let { (channel, msg) ->
+      channel.writeAndFlush(msg).addListener(ChannelFutureListener { future ->
         if (future.isSuccess) {
           deferred.complete(Unit)
         } else {
