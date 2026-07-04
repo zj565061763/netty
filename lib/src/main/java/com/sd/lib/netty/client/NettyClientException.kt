@@ -12,4 +12,4 @@ class NettyClientNotReadyException internal constructor() : NettyClientException
 class NettyClientSendException internal constructor(cause: Throwable?) : NettyClientException(null, cause)
 
 /** 发送超时异常 */
-class NettyClientSendTimeoutException internal constructor(cause: Throwable?) : NettyClientException(null, cause)
+class NettyClientSendTimeoutException internal constructor() : NettyClientException(null)

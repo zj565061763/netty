@@ -109,17 +109,17 @@ class NettyClient(
     }
   }
 
-  /** 发送消息 */
+  /** 发送消息，如果超时则抛出[NettyClientSendTimeoutException] */
   @Throws(NettyClientException::class)
-  private suspend fun send(message: String, timeoutMillis: Long = 10000L) {
+  suspend fun send(message: String, timeoutMillis: Long = 10000L) {
     val deferred = CompletableDeferred<Unit>().also { _sendingJobs.add(it) }
     try {
       val future = sendMessage(message, deferred)
       try {
         withTimeout(timeoutMillis.milliseconds) { deferred.await() }
-      } catch (e: TimeoutCancellationException) {
+      } catch (_: TimeoutCancellationException) {
         future.cancel(true)
-        throw NettyClientSendTimeoutException(cause = e)
+        throw NettyClientSendTimeoutException()
       }
     } finally {
       _sendingJobs.remove(deferred)
