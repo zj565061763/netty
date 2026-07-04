@@ -36,6 +36,8 @@ import kotlinx.coroutines.withTimeout
 import java.net.InetSocketAddress
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Duration.Companion.milliseconds
 
 class NettyServer(
   val port: Int,
@@ -44,14 +46,14 @@ class NettyServer(
 ) {
   private val _lock = Any()
 
-  private var _serverConnection: NettyServerConnection? = null
+  private var _connection: NettyConnection? = null
   private var _parentGroup: EventLoopGroup? = null
   private var _childGroup: EventLoopGroup? = null
 
   @Volatile
   private var _coroutineScope: CoroutineScope? = null
   private var _startDeferred: CompletableDeferred<Unit>? = null
-  private val _pendingJobs: MutableSet<CompletableDeferred<*>> = Collections.newSetFromMap(ConcurrentHashMap())
+  private val _sendingJobs: MutableSet<CompletableDeferred<*>> = Collections.newSetFromMap(ConcurrentHashMap())
 
   private val _clients: MutableMap<String, ClientImpl> = mutableMapOf()
   private val _clientsFlow = MutableStateFlow<List<Client>>(emptyList())
@@ -86,84 +88,96 @@ class NettyServer(
 
   /** 停止服务 */
   fun stop() {
+    stopWithException(null)
+  }
+
+  /** 发送消息给指定客户端，如果超时则抛出[NettyServerTimeoutException] */
+  @Throws(NettyServerException::class)
+  suspend fun send(clientId: String, message: String, timeoutMillis: Long = 10000L) {
+    val deferred = CompletableDeferred<Unit>()
+    try {
+      _sendingJobs.add(deferred)
+      val future = sendMessage(clientId, message, deferred)
+      try {
+        withTimeout(timeoutMillis.milliseconds) { deferred.await() }
+      } catch (_: TimeoutCancellationException) {
+        future.cancel(true)
+        throw NettyServerTimeoutException()
+      } catch (e: CancellationException) {
+        future.cancel(true)
+        throw e
+      }
+    } finally {
+      _sendingJobs.remove(deferred)
+    }
+  }
+
+  /** 发送消息 */
+  @Throws(NettyServerException::class)
+  private fun sendMessage(
+    clientId: String,
+    message: String,
+    deferred: CompletableDeferred<Unit>,
+  ): ChannelFuture {
+    return synchronized(_lock) {
+      val client = _clients[clientId] ?: throw NettyServerClientNotFoundException()
+
+      val channel = client.channel
+      if (!channel.isActive) throw NettyServerClientNotReadyException()
+
+      val finalMessage = if (client.isLineBasedDecoder && !message.endsWith('\n')) {
+        message + "\n"
+      } else {
+        message
+      }
+
+      channel to finalMessage
+    }.let { (channel, msg) ->
+      try {
+        channel.writeAndFlush(msg)
+      } catch (e: Throwable) {
+        throw NettyServerException(cause = e)
+      }.addListener(ChannelFutureListener { future ->
+        if (future.isSuccess) {
+          deferred.complete(Unit)
+        } else {
+          deferred.completeExceptionally(NettyServerException(cause = future.cause()))
+        }
+      })
+    }
+  }
+
+  private fun stopWithException(exception: Throwable?) {
     synchronized(_lock) {
-      if (getState() == ServerState.STOPPED) return
-      _stateFlow.value = ServerState.STOPPED
-
-      _serverConnection?.destroy()
-      _serverConnection = null
-
-      _clients.clear()
-      _clientsFlow.value = emptyList()
-
-      _pendingJobs.forEach { it.cancel() }
-      _coroutineScope?.cancel()
-      _coroutineScope = null
-      _startDeferred?.cancel()
-      _startDeferred = null
+      _connection?.destroy()
+      _connection = null
 
       _parentGroup?.shutdownGracefully()
       _parentGroup = null
       _childGroup?.shutdownGracefully()
       _childGroup = null
-    }
-  }
 
-  /** 发送消息给指定客户端 */
-  @Throws(NettyServerException::class)
-  suspend fun send(clientId: String, message: String, timeoutMillis: Long = 10000L) {
-    try {
-      withTimeout(timeoutMillis) {
-        send(clientId, message)
+      _clients.clear()
+      _clientsFlow.value = emptyList()
+
+      _coroutineScope?.cancel()
+      _coroutineScope = null
+
+      if (exception != null) {
+        _startDeferred?.completeExceptionally(exception)
+      } else {
+        _startDeferred?.cancel()
       }
-    } catch (e: TimeoutCancellationException) {
-      throw NettyServerSendTimeoutException(cause = e)
-    }
-  }
+      _startDeferred = null
 
-  private suspend fun send(clientId: String, message: String) {
-    pendingJob { deferred ->
-      synchronized(_lock) {
-        val client = _clients[clientId]
-        if (client == null) {
-          deferred.completeExceptionally(NettyServerClientNotFoundException())
-          return@synchronized
-        }
-
-        val channel = client.channel
-        if (!channel.isActive) {
-          deferred.completeExceptionally(NettyServerClientNotReadyException())
-          return@synchronized
-        }
-
-        val finalMessage = if (client.isLineBasedDecoder && !message.endsWith('\n')) {
-          message + "\n"
-        } else {
-          message
-        }
-
-        channel.writeAndFlush(finalMessage).addListener(ChannelFutureListener { future ->
-          if (future.isSuccess) {
-            deferred.complete(Unit)
-          } else {
-            deferred.completeExceptionally(NettyServerSendException(cause = future.cause()))
-          }
-        })
+      if (exception != null) {
+        _sendingJobs.forEach { it.completeExceptionally(exception) }
+      } else {
+        _sendingJobs.forEach { it.cancel() }
       }
-    }
-  }
 
-  private suspend inline fun <T> pendingJob(block: (CompletableDeferred<T>) -> Unit) {
-    CompletableDeferred<T>()
-      .also { _pendingJobs.add(it) }
-      .also { deferred ->
-        try {
-          block(deferred)
-          deferred.await()
-        } finally {
-          _pendingJobs.remove(deferred)
-        }
-      }
+      _stateFlow.value = ServerState.STOPPED
+    }
   }
 
   private fun doStart(): CompletableDeferred<Unit> {
@@ -173,7 +187,7 @@ class NettyServer(
       try {
         val parentGroup = NioEventLoopGroup(1).also { _parentGroup = it }
         val childGroup = NioEventLoopGroup().also { _childGroup = it }
-        NettyServerConnection(_lock).also { _serverConnection = it }.start(
+        NettyConnection(_lock).also { _connection = it }.start(
           parentGroup = parentGroup,
           childGroup = childGroup,
           port = port,
@@ -184,8 +198,8 @@ class NettyServer(
               deferred.complete(Unit)
               _startDeferred = null
             } else {
-              deferred.completeExceptionally(NettyServerStartException(future.cause()))
-              stop()
+              val exception = NettyServerException(cause = future.cause())
+              stopWithException(exception)
             }
           },
           onChannelActive = { channel, isLineBasedDecoder ->
@@ -226,8 +240,9 @@ class NettyServer(
           }
         )
       } catch (e: Throwable) {
-        stop()
-        throw NettyServerStartException(e)
+        val exception = NettyServerException(cause = e)
+        stopWithException(exception)
+        throw exception
       }
     }
   }
@@ -280,7 +295,7 @@ class NettyServer(
   }
 }
 
-private class NettyServerConnection(private val lock: Any) {
+private class NettyConnection(private val lock: Any) {
   @Volatile
   private var _destroyed = false
   private var _channel: Channel? = null
