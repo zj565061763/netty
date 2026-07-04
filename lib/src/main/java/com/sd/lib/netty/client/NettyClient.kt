@@ -35,6 +35,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.milliseconds
 
 class NettyClient(
@@ -118,6 +119,9 @@ class NettyClient(
       } catch (_: TimeoutCancellationException) {
         future.cancel(true)
         throw NettyClientSendTimeoutException()
+      } catch (e: CancellationException) {
+        future.cancel(true)
+        throw e
       }
     } finally {
       _sendingJobs.remove(deferred)
