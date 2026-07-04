@@ -55,7 +55,9 @@ class NettyServer(
   private var _startDeferred: CompletableDeferred<Unit>? = null
   private val _sendingJobs: MutableSet<CompletableDeferred<*>> = Collections.newSetFromMap(ConcurrentHashMap())
 
-  private val _clients: MutableMap<String, ClientImpl> = mutableMapOf()
+  private val _clientsInfo: MutableMap<String, ClientInfo> = mutableMapOf()
+  private val _clients: MutableMap<String, Client> = mutableMapOf()
+
   private val _clientsFlow = MutableStateFlow<List<Client>>(emptyList())
   private val _messageFlow = MutableSharedFlow<ServerMessage>()
   private val _stateFlow = MutableStateFlow(ServerState.STOPPED)
@@ -124,12 +126,12 @@ class NettyServer(
     deferred: CompletableDeferred<Unit>,
   ): ChannelFuture {
     return synchronized(_lock) {
-      val client = _clients[clientId] ?: throw NettyServerClientNotFoundException()
+      val clientInfo = _clientsInfo[clientId] ?: throw NettyServerClientNotFoundException()
 
-      val channel = client.channel
+      val channel = clientInfo.channel
       if (!channel.isActive) throw NettyServerClientNotReadyException()
 
-      val finalMessage = if (client.isLineBasedDecoder && !message.endsWith('\n')) {
+      val finalMessage = if (clientInfo.isLineBasedDecoder && !message.endsWith('\n')) {
         message + "\n"
       } else {
         message
@@ -161,6 +163,7 @@ class NettyServer(
       _childGroup?.shutdownGracefully()
       _childGroup = null
 
+      _clientsInfo.clear()
       _clients.clear()
       _clientsFlow.value = emptyList()
 
@@ -211,22 +214,27 @@ class NettyServer(
             val remoteAddress = channel.remoteAddress()?.toString() ?: ""
             val socketAddress = channel.remoteAddress() as? InetSocketAddress
 
-            val client = ClientImpl(
+            val client = Client(
               id = clientId,
               remoteAddress = remoteAddress,
               ip = socketAddress?.address?.hostAddress ?: "",
               port = socketAddress?.port ?: 0,
+            )
+
+            val clientInfo = ClientInfo(
               channel = channel,
               isLineBasedDecoder = isLineBasedDecoder,
             )
 
             channel.attr(CLIENT_KEY).set(client)
+            _clientsInfo[clientId] = clientInfo
             _clients[clientId] = client
             _clientsFlow.value = _clients.values.toList()
           },
           onChannelInactive = { channel ->
             channel.attr(CLIENT_KEY).set(null)
             val clientId = channel.id().asLongText()
+            _clientsInfo.remove(clientId)
             if (_clients.remove(clientId) != null) {
               _clientsFlow.value = _clients.values.toList()
             }
@@ -278,21 +286,17 @@ class NettyServer(
     val message: String,
   )
 
-  interface Client {
-    val id: String
-    val remoteAddress: String
-    val ip: String
-    val port: Int
-  }
+  data class Client(
+    val id: String,
+    val remoteAddress: String,
+    val ip: String,
+    val port: Int,
+  )
 
-  private data class ClientImpl(
-    override val id: String,
-    override val remoteAddress: String,
-    override val ip: String,
-    override val port: Int,
+  private class ClientInfo(
     val channel: Channel,
     val isLineBasedDecoder: Boolean,
-  ) : Client
+  )
 
   private companion object {
     val CLIENT_KEY = AttributeKey.valueOf<Client>("NettyServer.Client")
