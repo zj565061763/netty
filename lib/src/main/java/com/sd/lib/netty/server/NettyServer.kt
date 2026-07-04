@@ -60,13 +60,13 @@ class NettyServer(
   private val _messageFlow = MutableSharedFlow<ServerMessage>()
   private val _stateFlow = MutableStateFlow(ServerState.STOPPED)
 
-  /** 监听客户端列表 */
+  /** 客户端列表 */
   val clientsFlow: StateFlow<List<Client>> = _clientsFlow.asStateFlow()
 
-  /** 监听所有客户端消息 */
+  /** 所有客户端消息 */
   val messageFlow: Flow<ServerMessage> = _messageFlow.asSharedFlow()
 
-  /** 监听服务器状态 */
+  /** 服务器状态 */
   val stateFlow: StateFlow<ServerState> = _stateFlow.asStateFlow()
 
   /** 服务器状态 */
