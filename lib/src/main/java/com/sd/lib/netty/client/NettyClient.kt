@@ -169,6 +169,7 @@ class NettyClient(
       } else {
         _sendingJobs.forEach { it.cancel() }
       }
+
       _connectionStateFlow.value = ConnectionState.DISCONNECTED
     }
   }
