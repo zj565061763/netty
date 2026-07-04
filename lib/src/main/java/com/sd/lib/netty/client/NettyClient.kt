@@ -85,9 +85,6 @@ class NettyClient(
   /** 断开连接 */
   fun disconnect() {
     synchronized(_lock) {
-      if (getConnectionState() == ConnectionState.DISCONNECTED) return
-      _connectionStateFlow.value = ConnectionState.DISCONNECTED
-
       _connection?.destroy()
       _connection = null
 
@@ -106,6 +103,7 @@ class NettyClient(
       _connectDeferred = null
 
       _sendingJobs.forEach { it.cancel() }
+      _connectionStateFlow.value = ConnectionState.DISCONNECTED
     }
   }
 
@@ -200,7 +198,7 @@ class NettyClient(
     _messageScope?.also { return it }
     synchronized(_lock) {
       _messageScope?.also { return it }
-      if (getConnectionState() == ConnectionState.DISCONNECTED) return null
+      if (_connection == null) return null
       return CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
         .also { _messageScope = it }
     }
