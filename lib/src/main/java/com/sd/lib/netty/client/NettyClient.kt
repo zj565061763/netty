@@ -243,7 +243,6 @@ private class NettyConnection(private val lock: Any) {
       .group(group)
       .channel(NioSocketChannel::class.java)
       .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeoutMillis)
-      .option(ChannelOption.SO_REUSEADDR, true)
       .handler(object : ChannelInitializer<SocketChannel>() {
         override fun initChannel(ch: SocketChannel) {
           ch.pipeline()
