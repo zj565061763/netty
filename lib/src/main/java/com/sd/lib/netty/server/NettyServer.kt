@@ -227,13 +227,13 @@ class NettyServer(
 
             channel.attr(CLIENT_KEY).set(client)
             _clientsInfo[clientId] = clientInfo
-            _clientsFlow.value = _clientsInfo.values.map { it.client }
+            syncClientsFlowLocked()
           },
           onChannelInactive = { channel ->
             channel.attr(CLIENT_KEY).set(null)
             val clientId = channel.id().asLongText()
             if (_clientsInfo.remove(clientId) != null) {
-              _clientsFlow.value = _clientsInfo.values.map { it.client }
+              syncClientsFlowLocked()
             }
           },
           onChannelRead = { channel, msg ->
@@ -254,6 +254,10 @@ class NettyServer(
         throw exception
       }
     }
+  }
+
+  private fun syncClientsFlowLocked() {
+    _clientsFlow.value = _clientsInfo.values.map { it.client }
   }
 
   @OptIn(ExperimentalCoroutinesApi::class)
