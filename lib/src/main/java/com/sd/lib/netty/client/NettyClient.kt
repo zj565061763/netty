@@ -211,8 +211,10 @@ class NettyClient(
           onChannelRead0 = { msg ->
             getMessageScope()?.launch { _messageFlow.emit(msg) }
           },
-          onExceptionCaught = { e ->
-            onNettyError(e)
+          onExceptionCaught = { cause ->
+            val exception = NettyClientException(cause = cause)
+            disconnectWithException(exception)
+            runCatching { onNettyError(cause) }
           }
         )
       } catch (e: Throwable) {
@@ -308,10 +310,13 @@ private class NettyConnection(private val lock: Any) {
               }
 
               override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
-                if (!_destroyed) {
-                  onExceptionCaught(cause)
+                try {
+                  if (!_destroyed) {
+                    onExceptionCaught(cause)
+                  }
+                } finally {
+                  ctx.close()
                 }
-                ctx.close()
               }
             })
         }
