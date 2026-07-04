@@ -93,7 +93,11 @@ class NettyServer(
 
   /** 发送消息给指定客户端，如果超时则抛出[NettyServerTimeoutException] */
   @Throws(NettyServerException::class)
-  suspend fun send(clientId: String, message: String, timeoutMillis: Long = 10000L) {
+  suspend fun send(
+    clientId: String,
+    message: String,
+    timeoutMillis: Long = 10000L,
+  ) {
     val deferred = CompletableDeferred<Unit>()
     try {
       _sendingJobs.add(deferred)

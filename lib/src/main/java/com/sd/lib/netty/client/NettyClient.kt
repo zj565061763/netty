@@ -91,7 +91,10 @@ class NettyClient(
 
   /** 发送消息，如果超时则抛出[NettyClientTimeoutException] */
   @Throws(NettyClientException::class)
-  suspend fun send(message: String, timeoutMillis: Long = 10000L) {
+  suspend fun send(
+    message: String,
+    timeoutMillis: Long = 10000L,
+  ) {
     val deferred = CompletableDeferred<Unit>()
     try {
       _sendingJobs.add(deferred)
@@ -112,7 +115,10 @@ class NettyClient(
 
   /** 发送消息 */
   @Throws(NettyClientException::class)
-  private fun sendMessage(message: String, deferred: CompletableDeferred<Unit>): ChannelFuture {
+  private fun sendMessage(
+    message: String,
+    deferred: CompletableDeferred<Unit>,
+  ): ChannelFuture {
     return synchronized(_lock) {
       val channel = _channel
       if (channel == null || !channel.isActive) {
