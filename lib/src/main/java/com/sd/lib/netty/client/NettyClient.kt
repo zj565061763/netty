@@ -35,6 +35,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration.Companion.milliseconds
 
 class NettyClient(
   val host: String,
@@ -44,17 +45,17 @@ class NettyClient(
   private val onNettyError: (Throwable) -> Unit = { it.printStackTrace() },
 ) {
   private val _lock = Any()
-  @Volatile
-  private var _isLineBasedDecoder = false
 
   private var _connection: NettyConnection? = null
-  private var _group: EventExecutorGroup? = null
   private var _channel: Channel? = null
+  private var _group: EventExecutorGroup? = null
 
+  @Volatile
+  private var _isLineBasedDecoder = false
   @Volatile
   private var _coroutineScope: CoroutineScope? = null
   private var _connectDeferred: CompletableDeferred<Unit>? = null
-  private val _pendingJobs: MutableSet<CompletableDeferred<*>> = Collections.newSetFromMap(ConcurrentHashMap())
+  private val _sendingJobs: MutableSet<CompletableDeferred<*>> = Collections.newSetFromMap(ConcurrentHashMap())
 
   private val _messageFlow = MutableSharedFlow<String>()
   private val _connectionStateFlow = MutableStateFlow(ConnectionState.DISCONNECTED)
@@ -87,73 +88,66 @@ class NettyClient(
       if (getConnectionState() == ConnectionState.DISCONNECTED) return
       _connectionStateFlow.value = ConnectionState.DISCONNECTED
 
-      _isLineBasedDecoder = false
       _connection?.destroy()
       _connection = null
-
-      _pendingJobs.forEach { it.cancel() }
-      _coroutineScope?.cancel()
-      _coroutineScope = null
-      _connectDeferred?.cancel()
-      _connectDeferred = null
 
       _channel?.close()
       _channel = null
 
       _group?.shutdownGracefully()
       _group = null
+
+      _isLineBasedDecoder = false
+
+      _coroutineScope?.cancel()
+      _coroutineScope = null
+
+      _connectDeferred?.cancel()
+      _connectDeferred = null
+
+      _sendingJobs.forEach { it.cancel() }
     }
   }
 
   /** 发送消息 */
   @Throws(NettyClientException::class)
-  suspend fun send(message: String, timeoutMillis: Long = 10000L) {
+  private suspend fun send(message: String, timeoutMillis: Long = 10000L) {
+    val deferred = CompletableDeferred<Unit>().also { _sendingJobs.add(it) }
     try {
-      withTimeout(timeoutMillis) {
-        send(message)
+      val future = sendMessage(message, deferred)
+      try {
+        withTimeout(timeoutMillis.milliseconds) { deferred.await() }
+      } catch (e: TimeoutCancellationException) {
+        future.cancel(true)
+        throw NettyClientSendTimeoutException(cause = e)
       }
-    } catch (e: TimeoutCancellationException) {
-      throw NettyClientSendTimeoutException(cause = e)
+    } finally {
+      _sendingJobs.remove(deferred)
     }
   }
 
-  private suspend fun send(message: String) {
-    pendingJob { deferred ->
-      synchronized(_lock) {
-        val channel = _channel
-        if (channel == null || !channel.isActive) {
-          deferred.completeExceptionally(NettyClientNotReadyException())
-          return@synchronized
-        }
+  @Throws(NettyClientException::class)
+  private fun sendMessage(message: String, deferred: CompletableDeferred<Unit>): ChannelFuture {
+    return synchronized(_lock) {
+      val channel = _channel
+      if (channel == null || !channel.isActive) {
+        throw NettyClientNotReadyException()
+      }
 
-        val finalMessage = if (_isLineBasedDecoder && !message.endsWith('\n')) {
-          message + "\n"
+      val finalMessage = if (_isLineBasedDecoder && !message.endsWith('\n')) {
+        message + "\n"
+      } else {
+        message
+      }
+
+      channel.writeAndFlush(finalMessage).addListener(ChannelFutureListener { future ->
+        if (future.isSuccess) {
+          deferred.complete(Unit)
         } else {
-          message
+          deferred.completeExceptionally(NettyClientSendException(cause = future.cause()))
         }
-
-        channel.writeAndFlush(finalMessage).addListener(ChannelFutureListener { future ->
-          if (future.isSuccess) {
-            deferred.complete(Unit)
-          } else {
-            deferred.completeExceptionally(NettyClientSendException(cause = future.cause()))
-          }
-        })
-      }
+      })
     }
-  }
-
-  private suspend inline fun <T> pendingJob(block: (CompletableDeferred<T>) -> Unit) {
-    CompletableDeferred<T>()
-      .also { _pendingJobs.add(it) }
-      .also { deferred ->
-        try {
-          block(deferred)
-          deferred.await()
-        } finally {
-          _pendingJobs.remove(deferred)
-        }
-      }
   }
 
   private fun doConnect(): CompletableDeferred<Unit> {
