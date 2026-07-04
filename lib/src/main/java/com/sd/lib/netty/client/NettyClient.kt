@@ -49,7 +49,7 @@ class NettyClient(
 
   private var _connection: NettyConnection? = null
   private var _channel: Channel? = null
-  private var _group: EventExecutorGroup? = null
+  private var _group: EventLoopGroup? = null
 
   @Volatile
   private var _isLineBasedDecoder = false
