@@ -16,6 +16,7 @@ import io.netty.channel.socket.nio.NioServerSocketChannel
 import io.netty.handler.codec.LineBasedFrameDecoder
 import io.netty.handler.codec.string.StringDecoder
 import io.netty.handler.codec.string.StringEncoder
+import io.netty.handler.timeout.IdleState
 import io.netty.handler.timeout.IdleStateEvent
 import io.netty.handler.timeout.IdleStateHandler
 import io.netty.util.AttributeKey
@@ -363,11 +364,14 @@ private class NettyConnection(private val lock: Any) {
           val frameDecoder = getFrameDecoder()
           val isLineBasedDecoder = frameDecoder is LineBasedFrameDecoder
 
-          val pipeline = ch.pipeline()
+          var pipeline = ch.pipeline()
           if (readIdleTimeSeconds > 0) {
-            pipeline.addLast(
+            pipeline = pipeline.addLast(
               IdleStateHandler(
-                readIdleTimeSeconds.toLong(), 0, 0, TimeUnit.SECONDS
+                readIdleTimeSeconds.toLong(),
+                0,
+                0,
+                TimeUnit.SECONDS,
               )
             )
           }
@@ -401,7 +405,7 @@ private class NettyConnection(private val lock: Any) {
               }
 
               override fun userEventTriggered(ctx: ChannelHandlerContext, evt: Any) {
-                if (evt is IdleStateEvent) {
+                if (evt is IdleStateEvent && evt.state() == IdleState.READER_IDLE) {
                   ctx.close()
                 } else {
                   super.userEventTriggered(ctx, evt)
