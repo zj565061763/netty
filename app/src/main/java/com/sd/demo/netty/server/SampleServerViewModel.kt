@@ -10,7 +10,12 @@ import java.net.Inet4Address
 import java.net.NetworkInterface
 
 class SampleServerViewModel : ViewModel() {
-  private val _server = NettyServer(8888)
+  private val _server = NettyServer(
+    port = 8888,
+    readIdleTimeSeconds = 10,
+    onChannelError = { client, error -> logMsg { "server onError client:$client|error:${error.stackTraceToString()}" } },
+    onReadIdle = { client -> logMsg { "onReadIdle client:$client" } },
+  )
 
   val serverStateFlow = _server.stateFlow
   val clientsFlow = _server.clientsFlow
