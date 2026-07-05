@@ -50,6 +50,7 @@ class SampleClientViewModel : ViewModel() {
 
       launch {
         client.connectionStateFlow.collect {
+          logMsg { "client state:$it" }
           _stateFlow.value = it
         }
       }
