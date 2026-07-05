@@ -93,9 +93,9 @@ class NettyClient(
   }
 
   /**
-   * 发送消息，
+   * 发送消息，挂起直到发送成功，如果抛异常则表示发送失败或者取消。
    * 如果正在发送时，[disconnect]被触发，可能抛出[CancellationException],
-   * 如果发送超时则抛出[NettyClientTimeoutException]，超时不代表消息一定没发出去
+   * 如果发送超时则抛出[NettyClientTimeoutException]，超时或取消不代表消息一定没发出去。
    */
   @Throws(NettyClientException::class)
   suspend fun send(
