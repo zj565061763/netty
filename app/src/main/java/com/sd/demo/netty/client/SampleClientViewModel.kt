@@ -45,8 +45,11 @@ class SampleClientViewModel : ViewModel() {
       oldJob?.cancelAndJoin()
       error = null
 
-      val client = NettyClient(host, portInt)
-      _client = client
+      val client = NettyClient(
+        host = host,
+        port = portInt,
+        onError = { "client onError:${it.stackTraceToString()}" },
+      ).also { _client = it }
 
       launch {
         client.connectionStateFlow.collect {

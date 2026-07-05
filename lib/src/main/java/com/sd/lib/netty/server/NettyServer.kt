@@ -63,7 +63,7 @@ class NettyServer(
    * 注意：此回调中只应该做日志记录等简单操作，不应该调用[NettyServer.start]等操作。
    * 注意：回调中抛出的异常会被静默捕获。
    */
-  private val onChannelError: (Client?, Throwable) -> Unit = { _, e -> e.printStackTrace() },
+  private val onError: (Client?, Throwable) -> Unit = { _, e -> e.printStackTrace() },
 
   /**
    * 读超时回调，超时时间由[readIdleTimeSeconds]控制。
@@ -291,7 +291,7 @@ class NettyServer(
           onExceptionCaught = { ctx, e ->
             val clientId = ctx.channel()?.id()?.asLongText()
             val client = synchronized(_lock) { _clientsInfo[clientId]?.client }
-            runCatching { onChannelError(client, e) }
+            runCatching { onError(client, e) }
           },
         )
       } catch (e: Throwable) {

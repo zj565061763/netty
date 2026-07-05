@@ -13,7 +13,7 @@ class SampleServerViewModel : ViewModel() {
   private val _server = NettyServer(
     port = 8888,
     readIdleTimeSeconds = 10,
-    onChannelError = { client, error -> logMsg { "server onError client:$client|error:${error.stackTraceToString()}" } },
+    onError = { client, error -> logMsg { "server onError client:$client|error:${error.stackTraceToString()}" } },
     onReadIdle = { client -> logMsg { "server onReadIdle client:$client" } },
   )
 

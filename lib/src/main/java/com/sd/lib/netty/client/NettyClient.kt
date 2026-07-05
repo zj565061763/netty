@@ -55,7 +55,7 @@ class NettyClient(
    * 注意：此回调中只应该做日志记录等简单操作，不应该调用[NettyClient.connect]等操作。
    * 注意：回调中抛出的异常会被静默捕获。
    */
-  private val onNettyError: (Throwable) -> Unit = { it.printStackTrace() },
+  private val onError: (Throwable) -> Unit = { it.printStackTrace() },
 ) {
   private val _lock = Any()
 
@@ -233,7 +233,7 @@ class NettyClient(
             getMessageScope()?.launch { _messageFlow.emit(msg) }
           },
           onExceptionCaught = { e ->
-            runCatching { onNettyError(e) }
+            runCatching { onError(e) }
           },
         )
       } catch (e: Throwable) {
