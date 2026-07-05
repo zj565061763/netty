@@ -8,6 +8,7 @@ import io.netty.channel.ChannelHandler
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInitializer
 import io.netty.channel.ChannelOption
+import io.netty.channel.ConnectTimeoutException
 import io.netty.channel.EventLoopGroup
 import io.netty.channel.SimpleChannelInboundHandler
 import io.netty.channel.nio.NioEventLoopGroup
@@ -219,7 +220,12 @@ class NettyClient(
               _channel = future.channel()
               setConnectedLocked()
             } else {
-              val exception = NettyClientException(cause = future.cause())
+              val cause = future.cause()
+              val exception = if (cause is ConnectTimeoutException) {
+                NettyClientTimeoutException()
+              } else {
+                NettyClientException(cause = cause)
+              }
               disconnectWithException(exception)
             }
           },
