@@ -420,7 +420,7 @@ private class NettyConnection(private val lock: Any) {
               }
 
               override fun userEventTriggered(ctx: ChannelHandlerContext, evt: Any) {
-                if (evt is IdleStateEvent) {
+                if (!_destroyed && evt is IdleStateEvent) {
                   onChannelIdle(ctx, evt)
                 } else {
                   super.userEventTriggered(ctx, evt)
