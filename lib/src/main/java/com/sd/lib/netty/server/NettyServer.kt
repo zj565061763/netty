@@ -41,7 +41,18 @@ import kotlin.time.Duration.Companion.milliseconds
 
 class NettyServer(
   val port: Int,
+
+  /**
+   * 帧解码，默认为[LineBasedFrameDecoder]，根据换行符分割，
+   * 默认[LineBasedFrameDecoder]的情况下，[NettyServer.send]会自动带上分隔符。
+   */
   private val getFrameDecoder: () -> ChannelHandler = { LineBasedFrameDecoder(8192) },
+
+  /**
+   * 异常回调，
+   * 注意：此回调中只应该做日志记录等简单操作，不应该调用[NettyServer.start]等操作。
+   * 注意：回调中抛出的异常会被静默捕获。
+   */
   private val onNettyError: (Throwable) -> Unit = { it.printStackTrace() },
 ) {
   private val _lock = Any()
