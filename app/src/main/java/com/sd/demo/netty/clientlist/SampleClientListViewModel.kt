@@ -16,7 +16,7 @@ class SampleClientListViewModel : ViewModel() {
   private val _clients = MutableStateFlow<List<NettyClient>>(emptyList())
   val clients = _clients.asStateFlow()
 
-  val serverIPInputState = TextFieldState("127.0.0.1")
+  val serverIPInputState = TextFieldState("")
   val serverPortInputState = TextFieldState("8888")
 
   fun addClient() {
