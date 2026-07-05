@@ -86,7 +86,11 @@ class NettyServer(
     return _stateFlow.value
   }
 
-  /** 启动服务 */
+  /**
+   * 启动服务，挂起直到启动成功，如果抛异常则表示启动失败或者取消。
+   * 如果正在启动时，[stop]被触发，可能抛出[CancellationException]，
+   * 如果正在启动时，有其他协程调用此方法，则该协程会挂起。
+   */
   @Throws(NettyServerException::class)
   suspend fun start() {
     synchronized(_lock) {
