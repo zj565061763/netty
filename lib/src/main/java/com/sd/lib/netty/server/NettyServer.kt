@@ -64,6 +64,12 @@ class NettyServer(
    * 注意：回调中抛出的异常会被静默捕获。
    */
   private val onChannelError: (Client?, Throwable) -> Unit = { _, e -> e.printStackTrace() },
+
+  /**
+   * 读超时回调，超时时间由[readIdleTimeSeconds]控制。
+   * 注意：回调中抛出的异常会被静默捕获。
+   */
+  private val onReadIdle: (Client?) -> Unit = {},
 ) {
   private val _lock = Any()
 
@@ -274,6 +280,14 @@ class NettyServer(
               }
             }
           },
+          onChannelIdle = { ctx, event ->
+            if (event.state() == IdleState.READER_IDLE) {
+              val clientId = ctx.channel()?.id()?.asLongText()
+              val client = synchronized(_lock) { _clientsInfo[clientId]?.client }
+              runCatching { onReadIdle(client) }
+              ctx.close()
+            }
+          },
           onExceptionCaught = { ctx, e ->
             val clientId = ctx.channel()?.id()?.asLongText()
             val client = synchronized(_lock) { _clientsInfo[clientId]?.client }
@@ -352,6 +366,7 @@ private class NettyConnection(private val lock: Any) {
     onChannelActive: (Channel, Boolean) -> Unit,
     onChannelInactive: (Channel) -> Unit,
     onChannelRead: (Channel, String) -> Unit,
+    onChannelIdle: (ChannelHandlerContext, IdleStateEvent) -> Unit,
     onExceptionCaught: (ChannelHandlerContext, Throwable) -> Unit,
   ) {
     if (_destroyed) return
@@ -405,8 +420,8 @@ private class NettyConnection(private val lock: Any) {
               }
 
               override fun userEventTriggered(ctx: ChannelHandlerContext, evt: Any) {
-                if (evt is IdleStateEvent && evt.state() == IdleState.READER_IDLE) {
-                  ctx.close()
+                if (evt is IdleStateEvent) {
+                  onChannelIdle(ctx, evt)
                 } else {
                   super.userEventTriggered(ctx, evt)
                 }
