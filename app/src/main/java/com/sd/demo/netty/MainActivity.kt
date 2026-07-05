@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.sd.demo.netty.client.SampleClient
 import com.sd.demo.netty.clientlist.SampleClientList
 import com.sd.demo.netty.server.SampleServer
 import com.sd.demo.netty.theme.AppTheme
@@ -29,6 +30,7 @@ class MainActivity : ComponentActivity() {
         Content(
           listActivity = listOf(
             SampleServer::class.java,
+            SampleClient::class.java,
             SampleClientList::class.java,
           ),
           onClickActivity = {

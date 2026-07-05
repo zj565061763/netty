@@ -25,6 +25,7 @@
         </activity>
 
         <activity android:name=".clientlist.SampleClientList" />
+        <activity android:name=".client.SampleClient" />
         <activity android:name=".server.SampleServer" />
 
     </application>
