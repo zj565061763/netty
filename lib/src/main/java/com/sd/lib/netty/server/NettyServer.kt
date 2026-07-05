@@ -107,7 +107,11 @@ class NettyServer(
     stopWithException(null)
   }
 
-  /** 发送消息给指定客户端，如果超时则抛出[NettyServerTimeoutException] */
+  /**
+   * 发送消息给指定客户端，挂起直到发送成功，如果抛异常则表示发送失败或者取消。
+   * 如果正在发送时，[stop]被触发，可能抛出[CancellationException],
+   * 如果发送超时则抛出[NettyServerTimeoutException]，超时或取消不代表消息一定没发出去。
+   */
   @Throws(NettyServerException::class)
   suspend fun send(
     clientId: String,
