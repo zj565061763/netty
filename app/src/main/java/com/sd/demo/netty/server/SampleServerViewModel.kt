@@ -14,7 +14,7 @@ class SampleServerViewModel : ViewModel() {
     port = 8888,
     readIdleTimeSeconds = 10,
     onChannelError = { client, error -> logMsg { "server onError client:$client|error:${error.stackTraceToString()}" } },
-    onReadIdle = { client -> logMsg { "onReadIdle client:$client" } },
+    onReadIdle = { client -> logMsg { "server onReadIdle client:$client" } },
   )
 
   val serverStateFlow = _server.stateFlow
