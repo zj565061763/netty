@@ -72,9 +72,9 @@ class NettyClient(
   }
 
   /**
-   * 开始连接，
+   * 开始连接，挂起直到连接成功，如果抛异常则表示连接失败或者取消。
    * 如果正在连接时，[disconnect]被触发，可能抛出[CancellationException]，
-   * 如果正在连接时，有其他协程调用此方法，则该协程会挂起
+   * 如果正在连接时，有其他协程调用此方法，则该协程会挂起。
    */
   @Throws(NettyClientException::class)
   suspend fun connect() {
