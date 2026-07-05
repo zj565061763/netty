@@ -267,7 +267,7 @@ class NettyServer(
             val clientId = ctx.channel()?.id()?.asLongText()
             val client = synchronized(_lock) { _clientsInfo[clientId]?.client }
             onChannelError(client, e)
-          }
+          },
         )
       } catch (e: Throwable) {
         val exception = NettyServerException(cause = e)
