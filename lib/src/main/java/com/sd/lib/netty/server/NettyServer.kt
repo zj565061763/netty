@@ -379,10 +379,13 @@ private class NettyConnection(private val lock: Any) {
               }
 
               override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
-                if (!_destroyed) {
-                  onNettyError(cause)
+                try {
+                  if (!_destroyed) {
+                    onNettyError(cause)
+                  }
+                } finally {
+                  runCatching { ctx.close() }
                 }
-                ctx.close()
               }
             })
         }
@@ -392,9 +395,7 @@ private class NettyConnection(private val lock: Any) {
           if (_destroyed) {
             runCatching { future.channel().close() }
           } else {
-            if (future.isSuccess) {
-              _channel = future.channel()
-            }
+            if (future.isSuccess) _channel = future.channel()
             onBind(future)
           }
         }
