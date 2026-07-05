@@ -3,6 +3,7 @@ package com.sd.demo.netty.server
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sd.demo.netty.logMsg
+import com.sd.demo.netty.safeRunCatching
 import com.sd.lib.netty.server.NettyServer
 import kotlinx.coroutines.launch
 import java.net.Inet4Address
@@ -19,7 +20,7 @@ class SampleServerViewModel : ViewModel() {
 
   init {
     viewModelScope.launch {
-      runCatching {
+      safeRunCatching {
         _server.start()
       }.onFailure {
         logMsg { "server start error:${it.stackTraceToString()}" }
@@ -35,7 +36,7 @@ class SampleServerViewModel : ViewModel() {
 
   fun sendMessage(client: NettyServer.Client, message: String) {
     viewModelScope.launch {
-      runCatching {
+      safeRunCatching {
         _server.send(client.id, message)
       }.onFailure {
         logMsg { "server send message error:${it.stackTraceToString()}" }

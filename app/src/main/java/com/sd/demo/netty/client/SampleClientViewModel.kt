@@ -6,16 +6,16 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sd.demo.netty.logMsg
+import com.sd.demo.netty.safeRunCatching
 import com.sd.lib.netty.client.NettyClient
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlin.coroutines.cancellation.CancellationException
 
 class SampleClientViewModel : ViewModel() {
-  var host by mutableStateOf("127.0.0.1")
+  var host by mutableStateOf("")
   var port by mutableStateOf("8888")
 
   private var _client: NettyClient? = null
@@ -38,6 +38,8 @@ class SampleClientViewModel : ViewModel() {
       return
     }
 
+    logMsg { "client connect" }
+
     val oldJob = _connectJob
     _connectJob = viewModelScope.launch {
       oldJob?.cancelAndJoin()
@@ -58,16 +60,17 @@ class SampleClientViewModel : ViewModel() {
         }
       }
 
-      runCatching {
+      safeRunCatching {
         client.connect()
-      }.onFailure { e ->
-        if (e is CancellationException) throw e
-        error = e.toString()
+      }.onFailure {
+        error = it.toString()
+        logMsg { "client connect error:${it.stackTraceToString()}" }
       }
     }
   }
 
   fun disconnect() {
+    logMsg { "client disconnect" }
     _client?.disconnect()
     _client = null
     _connectJob?.cancel()
@@ -78,8 +81,9 @@ class SampleClientViewModel : ViewModel() {
 
   fun sendMessage(message: String) {
     val client = _client ?: return
+    logMsg { "client sendMessage:$message" }
     viewModelScope.launch {
-      runCatching {
+      safeRunCatching {
         client.send(message)
         _messagesFlow.value += "Sent: $message"
       }.onFailure {
@@ -89,11 +93,13 @@ class SampleClientViewModel : ViewModel() {
   }
 
   fun clearError() {
+    logMsg { "client clearError" }
     error = null
   }
 
   override fun onCleared() {
     super.onCleared()
+    logMsg { "client onCleared" }
     _client?.disconnect()
   }
 }

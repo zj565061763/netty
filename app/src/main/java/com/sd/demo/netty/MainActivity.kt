@@ -21,6 +21,7 @@ import com.sd.demo.netty.client.SampleClient
 import com.sd.demo.netty.clientlist.SampleClientList
 import com.sd.demo.netty.server.SampleServer
 import com.sd.demo.netty.theme.AppTheme
+import kotlin.coroutines.cancellation.CancellationException
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,4 +65,9 @@ private fun Content(
 
 inline fun logMsg(block: () -> String) {
   Log.i("sd-demo", block())
+}
+
+inline fun <R> safeRunCatching(block: () -> R): Result<R> {
+  return runCatching(block)
+    .onFailure { if (it is CancellationException) throw it }
 }

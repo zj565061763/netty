@@ -4,6 +4,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sd.demo.netty.logMsg
+import com.sd.demo.netty.safeRunCatching
 import com.sd.lib.netty.client.NettyClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,7 +21,7 @@ class SampleClientListViewModel : ViewModel() {
 
   fun addClient() {
     viewModelScope.launch {
-      runCatching {
+      safeRunCatching {
         val client = NettyClient(
           host = serverIPInputState.text.toString(),
           port = serverPortInputState.text.toString().toInt()
@@ -28,14 +29,19 @@ class SampleClientListViewModel : ViewModel() {
         client.connect()
         _clients.update { it + client }
         initClient(client)
-      }.onFailure { logMsg { "client addClient error:${it.stackTraceToString()}" } }
+      }.onFailure {
+        logMsg { "client addClient error:${it.stackTraceToString()}" }
+      }
     }
   }
 
   fun sendMessage(client: NettyClient, message: String) {
     viewModelScope.launch {
-      runCatching { client.send(message) }
-        .onFailure { logMsg { "client sendMessage error:${it.stackTraceToString()}" } }
+      safeRunCatching {
+        client.send(message)
+      }.onFailure {
+        logMsg { "client sendMessage error:${it.stackTraceToString()}" }
+      }
     }
   }
 
