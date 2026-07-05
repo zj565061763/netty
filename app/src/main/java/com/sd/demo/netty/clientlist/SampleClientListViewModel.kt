@@ -1,4 +1,4 @@
-package com.sd.demo.netty.client
+package com.sd.demo.netty.clientlist
 
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.lifecycle.ViewModel
@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 
-class SampleClientViewModel : ViewModel() {
+class SampleClientListViewModel : ViewModel() {
   private val _clients = MutableStateFlow<List<NettyClient>>(emptyList())
   val clients = _clients.asStateFlow()
 

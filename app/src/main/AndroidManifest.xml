@@ -24,7 +24,7 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".client.SampleClient" />
+        <activity android:name=".clientlist.SampleClientList" />
         <activity android:name=".server.SampleServer" />
 
     </application>
