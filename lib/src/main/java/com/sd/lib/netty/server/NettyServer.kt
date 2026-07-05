@@ -53,7 +53,7 @@ class NettyServer(
    * 注意：此回调中只应该做日志记录等简单操作，不应该调用[NettyServer.start]等操作。
    * 注意：回调中抛出的异常会被静默捕获。
    */
-  private val onNettyError: (Throwable) -> Unit = { it.printStackTrace() },
+  private val onChannelError: (Client?, Throwable) -> Unit = { _, e -> e.printStackTrace() },
 ) {
   private val _lock = Any()
 
@@ -263,8 +263,10 @@ class NettyServer(
               }
             }
           },
-          onNettyError = { e ->
-            onNettyError(e)
+          onExceptionCaught = { ctx, e ->
+            val clientId = ctx.channel()?.id()?.asLongText()
+            val client = synchronized(_lock) { _clientsInfo[clientId]?.client }
+            onChannelError(client, e)
           }
         )
       } catch (e: Throwable) {
@@ -338,7 +340,7 @@ private class NettyConnection(private val lock: Any) {
     onChannelActive: (Channel, Boolean) -> Unit,
     onChannelInactive: (Channel) -> Unit,
     onChannelRead: (Channel, String) -> Unit,
-    onNettyError: (Throwable) -> Unit,
+    onExceptionCaught: (ChannelHandlerContext, Throwable) -> Unit,
   ) {
     if (_destroyed) return
     ServerBootstrap()
@@ -381,7 +383,7 @@ private class NettyConnection(private val lock: Any) {
               override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
                 try {
                   if (!_destroyed) {
-                    onNettyError(cause)
+                    onExceptionCaught(ctx, cause)
                   }
                 } finally {
                   runCatching { ctx.close() }
