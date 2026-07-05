@@ -40,8 +40,21 @@ import kotlin.time.Duration.Companion.milliseconds
 class NettyClient(
   val host: String,
   val port: Int,
+
+  /** 连接超时（毫秒） */
   private val connectTimeoutMillis: Int = 5000,
+
+  /**
+   * 帧解码，默认为[LineBasedFrameDecoder]，根据换行符分割，
+   * 默认[LineBasedFrameDecoder]的情况下，[NettyClient.send]会自动带上分隔符。
+   */
   private val getFrameDecoder: () -> ChannelHandler = { LineBasedFrameDecoder(8192) },
+
+  /**
+   * 异常回调，
+   * 注意：此回调中只应该做日志记录等简单操作，不应该调用[NettyClient.connect]等操作。
+   * 注意：回调中抛出的异常会被静默捕获。
+   */
   private val onNettyError: (Throwable) -> Unit = { it.printStackTrace() },
 ) {
   private val _lock = Any()
@@ -318,10 +331,12 @@ private class NettyConnection(private val lock: Any) {
               }
 
               override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
-                if (!_destroyed) {
-                  onExceptionCaught(cause)
-                } else {
-                  ctx.close()
+                synchronized(lock) {
+                  if (!_destroyed) {
+                    onExceptionCaught(cause)
+                  } else {
+                    runCatching { ctx.close() }
+                  }
                 }
               }
             })
