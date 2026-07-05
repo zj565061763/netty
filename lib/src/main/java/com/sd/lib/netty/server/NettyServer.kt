@@ -16,6 +16,8 @@ import io.netty.channel.socket.nio.NioServerSocketChannel
 import io.netty.handler.codec.LineBasedFrameDecoder
 import io.netty.handler.codec.string.StringDecoder
 import io.netty.handler.codec.string.StringEncoder
+import io.netty.handler.timeout.IdleStateEvent
+import io.netty.handler.timeout.IdleStateHandler
 import io.netty.util.AttributeKey
 import io.netty.util.CharsetUtil
 import kotlinx.coroutines.CompletableDeferred
@@ -36,11 +38,18 @@ import kotlinx.coroutines.withTimeout
 import java.net.InetSocketAddress
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.milliseconds
 
 class NettyServer(
   val port: Int,
+
+  /**
+   * 读超时时间（秒），如果在此时间内未收到客户端消息，则主动断开连接。
+   * 小于等于0，表示不检测。
+   */
+  private val readIdleTimeSeconds: Int = 60,
 
   /**
    * 帧解码，默认为[LineBasedFrameDecoder]，根据换行符分割，
@@ -215,6 +224,7 @@ class NettyServer(
           parentGroup = parentGroup,
           childGroup = childGroup,
           port = port,
+          readIdleTimeSeconds = readIdleTimeSeconds,
           getFrameDecoder = { getFrameDecoder() },
           onBind = { future ->
             if (future.isSuccess) {
@@ -335,6 +345,7 @@ private class NettyConnection(private val lock: Any) {
     parentGroup: EventLoopGroup,
     childGroup: EventLoopGroup,
     port: Int,
+    readIdleTimeSeconds: Int,
     getFrameDecoder: () -> ChannelHandler,
     onBind: (ChannelFuture) -> Unit,
     onChannelActive: (Channel, Boolean) -> Unit,
@@ -351,8 +362,17 @@ private class NettyConnection(private val lock: Any) {
         override fun initChannel(ch: SocketChannel) {
           val frameDecoder = getFrameDecoder()
           val isLineBasedDecoder = frameDecoder is LineBasedFrameDecoder
-          ch.pipeline()
-            .addLast(frameDecoder)
+
+          val pipeline = ch.pipeline()
+          if (readIdleTimeSeconds > 0) {
+            pipeline.addLast(
+              IdleStateHandler(
+                readIdleTimeSeconds.toLong(), 0, 0, TimeUnit.SECONDS
+              )
+            )
+          }
+
+          pipeline.addLast(frameDecoder)
             .addLast(StringDecoder(CharsetUtil.UTF_8))
             .addLast(StringEncoder(CharsetUtil.UTF_8))
             .addLast(object : SimpleChannelInboundHandler<String>() {
@@ -377,6 +397,14 @@ private class NettyConnection(private val lock: Any) {
               override fun channelRead0(ctx: ChannelHandlerContext, msg: String) {
                 if (!_destroyed) {
                   onChannelRead(ctx.channel(), msg)
+                }
+              }
+
+              override fun userEventTriggered(ctx: ChannelHandlerContext, evt: Any) {
+                if (evt is IdleStateEvent) {
+                  ctx.close()
+                } else {
+                  super.userEventTriggered(ctx, evt)
                 }
               }
 
