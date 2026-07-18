@@ -44,6 +44,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.milliseconds
 
 class NettyServer(
+  /** 监听端口，必须在1-65535范围内 */
   val port: Int,
 
   /**
@@ -55,6 +56,8 @@ class NettyServer(
   /**
    * 帧解码，默认为[LineBasedFrameDecoder]，根据换行符分割，
    * 默认[LineBasedFrameDecoder]的情况下，[NettyServer.send]会自动带上分隔符。
+   * 注意：每个客户端连接建立时都会调用一次，必须每次返回新的实例，
+   * 如果返回同一个非Sharable的实例，会导致后续客户端连接初始化失败。
    */
   private val getFrameDecoder: () -> ChannelHandler = { LineBasedFrameDecoder(8192) },
 
@@ -71,6 +74,10 @@ class NettyServer(
    */
   private val onReadIdle: (Client?) -> Unit = {},
 ) {
+  init {
+    require(port in 1..65535) { "port必须在1-65535范围内，当前值:$port" }
+  }
+
   private val _lock = Any()
 
   private var _connection: NettyConnection? = null
@@ -106,6 +113,8 @@ class NettyServer(
    * 启动服务，挂起直到启动成功，如果抛异常则表示启动失败或者取消。
    * 如果正在启动时，[stop]被触发，可能抛出[CancellationException]，
    * 如果正在启动时，有其他协程调用此方法，则该协程会挂起。
+   * 注意：调用方协程被取消只会中断本次等待，不会中止启动流程，
+   * 服务器仍可能启动成功进入STARTED状态，如果不再需要，需自行调用[stop]。
    */
   @Throws(NettyServerException::class)
   suspend fun start() {
