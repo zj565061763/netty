@@ -145,6 +145,7 @@ class NettyServer(
     message: String,
     timeoutMillis: Long = 10000L,
   ) {
+    require(timeoutMillis > 0) { "Require timeoutMillis > 0" }
     val deferred = CompletableDeferred<Unit>()
     try {
       _sendingJobs.add(deferred)
