@@ -28,6 +28,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -172,6 +173,7 @@ class NettyServer(
     deferred: CompletableDeferred<Unit>,
   ): ChannelFuture {
     return synchronized(_lock) {
+      deferred.ensureActive()
       val clientInfo = _clientsInfo[clientId] ?: throw NettyServerClientNotFoundException()
 
       val channel = clientInfo.channel
