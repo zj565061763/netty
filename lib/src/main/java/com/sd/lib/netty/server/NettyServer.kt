@@ -75,7 +75,7 @@ class NettyServer(
   private val onReadIdle: (Client?) -> Unit = {},
 ) {
   init {
-    require(port in 1..65535) { "port必须在1-65535范围内，当前值:$port" }
+    require(port in 1..65535) { "Require port in 1..65535" }
   }
 
   private val _lock = Any()
