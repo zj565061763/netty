@@ -127,6 +127,8 @@ class NettyServer(
    * 发送消息给指定客户端，挂起直到发送成功，如果抛异常则表示发送失败或者取消。
    * 如果正在发送时，[stop]被触发，可能抛出[CancellationException],
    * 如果发送超时则抛出[NettyServerTimeoutException]，超时或取消不代表消息一定没发出去。
+   * 如果客户端接收数据过慢，出站缓冲区堆积超过高水位线（Netty默认64KB），
+   * 则抛出[NettyServerClientNotWritableException]，此时应该暂缓发送或者断开该客户端。
    */
   @Throws(NettyServerException::class)
   suspend fun send(
@@ -164,6 +166,7 @@ class NettyServer(
 
       val channel = clientInfo.channel
       if (!channel.isActive) throw NettyServerClientNotReadyException()
+      if (!channel.isWritable) throw NettyServerClientNotWritableException()
 
       val finalMessage = if (clientInfo.isLineBasedDecoder && !message.endsWith('\n')) {
         message + "\n"

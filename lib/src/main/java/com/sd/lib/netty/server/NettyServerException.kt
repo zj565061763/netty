@@ -8,5 +8,8 @@ class NettyServerClientNotFoundException internal constructor() : NettyServerExc
 /** 客户端未就绪 */
 class NettyServerClientNotReadyException internal constructor() : NettyServerException()
 
+/** 客户端出站缓冲区已超过高水位线（客户端接收数据过慢），暂时不可写 */
+class NettyServerClientNotWritableException internal constructor() : NettyServerException()
+
 /** 超时异常 */
 class NettyServerTimeoutException internal constructor() : NettyServerException()
