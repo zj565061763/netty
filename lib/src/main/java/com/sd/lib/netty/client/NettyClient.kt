@@ -25,6 +25,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,7 +40,10 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.milliseconds
 
 class NettyClient(
+  /** 服务器地址 */
   val host: String,
+
+  /** 服务器端口，必须在1-65535范围内 */
   val port: Int,
 
   /** 连接超时（毫秒） */
@@ -48,6 +52,8 @@ class NettyClient(
   /**
    * 帧解码，默认为[LineBasedFrameDecoder]，根据换行符分割，
    * 默认[LineBasedFrameDecoder]的情况下，[NettyClient.send]会自动带上分隔符。
+   * 注意：每次调用[NettyClient.connect]建立连接时都会调用一次，必须每次返回新的实例，
+   * 如果返回同一个非Sharable的实例，首次连接正常，断线重连时会初始化失败。
    */
   private val getFrameDecoder: () -> ChannelHandler = { LineBasedFrameDecoder(8192) },
 
@@ -58,6 +64,12 @@ class NettyClient(
    */
   private val onError: (Throwable) -> Unit = { it.printStackTrace() },
 ) {
+  init {
+    require(host.isNotBlank()) { "host is blank" }
+    require(port in 1..65535) { "Require port in 1..65535" }
+    require(connectTimeoutMillis > 0) { "Require connectTimeoutMillis > 0" }
+  }
+
   private val _lock = Any()
 
   private var _connection: NettyConnection? = null
@@ -88,7 +100,10 @@ class NettyClient(
   /**
    * 开始连接，挂起直到连接成功，如果抛异常则表示连接失败或者取消。
    * 如果正在连接时，[disconnect]被触发，可能抛出[CancellationException]，
+   * 如果正在连接时，连接被动断开，抛出[NettyClientConnectionLostException]，
    * 如果正在连接时，有其他协程调用此方法，则该协程会挂起。
+   * 注意：调用方协程被取消只会中断本次等待，不会中止连接流程，
+   * 连接仍可能成功进入CONNECTED状态，如果不再需要，需自行调用[disconnect]。
    */
   @Throws(NettyClientException::class)
   suspend fun connect() {
@@ -109,13 +124,17 @@ class NettyClient(
   /**
    * 发送消息，挂起直到发送成功，如果抛异常则表示发送失败或者取消。
    * 如果正在发送时，[disconnect]被触发，可能抛出[CancellationException],
+   * 如果正在发送时，连接被动断开，抛出[NettyClientConnectionLostException]，
    * 如果发送超时则抛出[NettyClientTimeoutException]，超时或取消不代表消息一定没发出去。
+   * 如果服务端接收数据过慢，出站缓冲区堆积超过高水位线（Netty默认64KB），
+   * 则抛出[NettyClientNotWritableException]，此时应该暂缓发送。
    */
   @Throws(NettyClientException::class)
   suspend fun send(
     message: String,
     timeoutMillis: Long = 10000L,
   ) {
+    require(timeoutMillis > 0) { "Require timeoutMillis > 0" }
     val deferred = CompletableDeferred<Unit>()
     try {
       _sendingJobs.add(deferred)
@@ -141,10 +160,11 @@ class NettyClient(
     deferred: CompletableDeferred<Unit>,
   ): ChannelFuture {
     return synchronized(_lock) {
+      deferred.ensureActive()
+
       val channel = _channel
-      if (channel == null || !channel.isActive) {
-        throw NettyClientNotReadyException()
-      }
+      if (channel == null || !channel.isActive) throw NettyClientNotReadyException()
+      if (!channel.isWritable) throw NettyClientNotWritableException()
 
       val finalMessage = if (_isLineBasedDecoder && !message.endsWith('\n')) {
         message + "\n"
@@ -233,7 +253,8 @@ class NettyClient(
             setConnectedLocked()
           },
           onChannelInactive = {
-            disconnectWithException(null)
+            // 被动掉线（服务端断开、网络异常等），让挂起中的connect/send收到[NettyClientConnectionLostException]
+            disconnectWithException(NettyClientConnectionLostException())
           },
           onChannelRead0 = { msg ->
             getMessageScope()?.launch { _messageFlow.emit(msg) }
